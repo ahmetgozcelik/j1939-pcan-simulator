@@ -1,0 +1,314 @@
+{
+  "version": "1.0",
+  "messages": [
+    {
+      "can_id": "18FEEF00",
+      "name": "EFL/P1 - Engine Fluid Pressures",
+      "cycle_ms": 500,
+      "active": true,
+      "signals": [
+        {
+          "name": "Engine Fuel Delivery Pressure",
+          "byte_pos": 0,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 4.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 255,
+          "raw_value": 128,
+          "sim_mode": "ramp",
+          "unit": "kPa",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "Engine Oil Pressure",
+          "byte_pos": 3,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 4.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 255,
+          "raw_value": 128,
+          "sim_mode": "ramp",
+          "unit": "kPa",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
+      "can_id": "18FEE500",
+      "name": "HOURS - Engine Total Hours of Operation",
+      "cycle_ms": 1000,
+      "active": false,
+      "signals": [
+        {
+          "name": "Engine Total Hours",
+          "byte_pos": 0,
+          "bit_pos": 0,
+          "bit_length": 32,
+          "byte_order": "little_endian",
+          "scale": 0.05,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 4211081215,
+          "raw_value": 20000,
+          "sim_mode": "fixed",
+          "unit": "h",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
+      "can_id": "18FECA00",
+      "name": "DM1 - Active Diagnostic Trouble Codes",
+      "cycle_ms": 1000,
+      "active": true,
+      "signals": [],
+      "dm1_config": {
+        "lamp_status": 255,
+        "lamp_mode": "auto",
+        "auto_lamp_interval_s": 2.0,
+        "fmi": 0,
+        "occurrence": 0,
+        "spn": 0,
+        "spn_mode": "list",
+        "spn_list": [
+          100,
+          101
+        ],
+        "spn_list_interval_s": 2.0,
+        "spn_range_min": 0,
+        "spn_range_max": 524287,
+        "spn_range_interval_s": 2.0
+      }
+    },
+    {
+      "can_id": "18FEE000",
+      "name": "VD - Engine Operating State",
+      "cycle_ms": 1000,
+      "active": false,
+      "signals": [
+        {
+          "name": "Operating State",
+          "byte_pos": 0,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 255,
+          "raw_value": 0,
+          "sim_mode": "fixed",
+          "unit": "",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
+      "can_id": "18F00400",
+      "name": "EEC1 - Electronic Engine Controller 1",
+      "cycle_ms": 100,
+      "active": false,
+      "signals": [
+        {
+          "name": "Engine Speed",
+          "byte_pos": 3,
+          "bit_pos": 0,
+          "bit_length": 16,
+          "byte_order": "little_endian",
+          "scale": 0.125,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 64255,
+          "raw_value": 6400,
+          "sim_mode": "fixed",
+          "unit": "RPM",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
+      "can_id": "18FEF700",
+      "name": "VEP1 - Vehicle Electrical Power",
+      "cycle_ms": 1000,
+      "active": false,
+      "signals": [
+        {
+          "name": "Battery Potential / Power Input 1",
+          "byte_pos": 4,
+          "bit_pos": 0,
+          "bit_length": 16,
+          "byte_order": "little_endian",
+          "scale": 0.05,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 64255,
+          "raw_value": 480,
+          "sim_mode": "fixed",
+          "unit": "V",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
+      "can_id": "18FEEE00",
+      "name": "Oil Temp, Coolant Temp",
+      "cycle_ms": 1000,
+      "active": true,
+      "signals": [
+        {
+          "name": "Engine Coolant Temperature",
+          "byte_pos": 0,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": -40.0,
+          "raw_min": 0,
+          "raw_max": 250,
+          "raw_value": 130,
+          "sim_mode": "ramp",
+          "unit": "C",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 50.0
+        },
+        {
+          "name": "Engine Oil Temperature",
+          "byte_pos": 2,
+          "bit_pos": 0,
+          "bit_length": 16,
+          "byte_order": "little_endian",
+          "scale": 0.03125,
+          "offset": -273.0,
+          "raw_min": 0,
+          "raw_max": 64256,
+          "raw_value": 61686,
+          "sim_mode": "ramp",
+          "unit": "C",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 25.0
+        }
+      ]
+    },
+    {
+      "can_id": "18F00400",
+      "name": "RPM",
+      "cycle_ms": 1000,
+      "active": true,
+      "signals": [
+        {
+          "name": "RPM",
+          "byte_pos": 3,
+          "bit_pos": 0,
+          "bit_length": 16,
+          "byte_order": "little_endian",
+          "scale": 0.125,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 40000,
+          "raw_value": 9600,
+          "sim_mode": "ramp",
+          "unit": "rpm",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 100.0
+        }
+      ]
+    },
+    {
+      "can_id": "18FD0700",
+      "name": "Uyarılar",
+      "cycle_ms": 1000,
+      "active": false,
+      "signals": [
+        {
+          "name": "Engine Oil Pressure Low Lamp Command",
+          "byte_pos": 1,
+          "bit_pos": 4,
+          "bit_length": 2,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 3,
+          "raw_value": 1,
+          "sim_mode": "sawtooth",
+          "unit": "bit",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "Engine Air Filter Restriction Lamp Command",
+          "byte_pos": 2,
+          "bit_pos": 4,
+          "bit_length": 2,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 3,
+          "raw_value": 1,
+          "sim_mode": "sawtooth",
+          "unit": "bit",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "Engine Coolant Temperature High Lamp Command",
+          "byte_pos": 1,
+          "bit_pos": 6,
+          "bit_length": 2,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 3,
+          "raw_value": 1,
+          "sim_mode": "sawtooth",
+          "unit": "bit",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "Engine Coolant Level Low Lamp Command",
+          "byte_pos": 2,
+          "bit_pos": 0,
+          "bit_length": 2,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 3,
+          "raw_value": 1,
+          "sim_mode": "sawtooth",
+          "unit": "bit",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    }
+  ]
+}
