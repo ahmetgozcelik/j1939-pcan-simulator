@@ -192,10 +192,15 @@ class MessagePanel(QWidget):
         self._set_led(False)
         self.lbl_status = QLabel("PCAN: disconnected")
 
-        #ComboBox'lar
+        # ComboBox'lar
+        self.combo_backend = QComboBox()
+        self.combo_backend.addItem("PCAN", "pcan")
+        self.combo_backend.addItem("Virtual", "virtual")
+
         self.combo_channel = QComboBox()
         for i in range(1, 9):
             self.combo_channel.addItem(f'PCAN_USBBUS{i}')
+        self.combo_channel.addItem("j1939-simulator")
             
         self.combo_bitrate = QComboBox()
         self.combo_bitrate.addItems(['125 kbps', '250 kbps', '500 kbps', '1 Mbps'])
@@ -206,8 +211,9 @@ class MessagePanel(QWidget):
         
         status_row.addWidget(self.led)
         status_row.addWidget(self.lbl_status, 1)
-        status_row.addWidget(self.combo_channel) # YENİ
-        status_row.addWidget(self.combo_bitrate) # YENİ
+        status_row.addWidget(self.combo_backend)
+        status_row.addWidget(self.combo_channel)
+        status_row.addWidget(self.combo_bitrate)
         status_row.addWidget(self.btn_reconnect)
         layout.addLayout(status_row)
 

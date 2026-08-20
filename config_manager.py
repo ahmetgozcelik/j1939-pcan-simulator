@@ -17,6 +17,7 @@ APP_DIR = Path.home() / ".j1939_simulator"
 RECENT_FILE = APP_DIR / "recent.json"
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs" / "default.json"
 AUTOSAVE_PATH = APP_DIR / "autosave.json"
+APP_SETTINGS_FILE = APP_DIR / "settings.json"
 
 
 VALID_BYTE_ORDERS = ("little_endian", "big_endian")
@@ -237,6 +238,13 @@ class RecentState:
     recent: List[str] = field(default_factory=list)
 
 
+@dataclass
+class AdapterSettings:
+    backend: str = "pcan"
+    channel: str = "PCAN_USBBUS1"
+    bitrate: int = 250000
+
+
 def _read_recent() -> RecentState:
     if not RECENT_FILE.exists():
         return RecentState()
@@ -280,6 +288,33 @@ def remember_path(path: str, max_entries: int = 8) -> None:
     state.recent.insert(0, p)
     state.recent = state.recent[:max_entries]
     _write_recent(state)
+
+
+def load_adapter_settings() -> AdapterSettings:
+    if not APP_SETTINGS_FILE.exists():
+        return AdapterSettings()
+    try:
+        with APP_SETTINGS_FILE.open("r", encoding="utf-8") as f:
+            data: dict[str, Any] = json.load(f)
+        backend = str(data.get("backend", "pcan"))
+        if backend not in ("pcan", "virtual"):
+            backend = "pcan"
+        return AdapterSettings(
+            backend=backend,
+            channel=str(data.get("channel", "PCAN_USBBUS1")),
+            bitrate=int(data.get("bitrate", 250000)),
+        )
+    except Exception:
+        return AdapterSettings()
+
+
+def save_adapter_settings(settings: AdapterSettings) -> None:
+    try:
+        APP_DIR.mkdir(parents=True, exist_ok=True)
+        with APP_SETTINGS_FILE.open("w", encoding="utf-8") as f:
+            json.dump(asdict(settings), f, indent=2)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------

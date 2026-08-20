@@ -15,6 +15,39 @@ from PyQt5.QtCore import QObject, QThread, pyqtSignal, pyqtSlot
 
 DEFAULT_CHANNEL = "PCAN_USBBUS1"
 DEFAULT_BITRATE = 250_000
+DEFAULT_BACKEND = "pcan"
+SUPPORTED_BACKENDS = ("pcan", "virtual")
+
+
+def build_bus_kwargs(backend: str, channel: str, bitrate: int) -> dict:
+    backend = normalize_backend(backend)
+    if backend == "pcan":
+        return {
+            "interface": "pcan",
+            "channel": channel,
+            "bitrate": bitrate,
+        }
+    if backend == "virtual":
+        return {
+            "interface": "virtual",
+            "channel": channel or "j1939-simulator",
+            "receive_own_messages": False,
+        }
+    raise ValueError(f"Unsupported CAN backend: {backend}")
+
+
+def normalize_backend(backend: str) -> str:
+    backend = (backend or DEFAULT_BACKEND).strip().lower()
+    if backend not in SUPPORTED_BACKENDS:
+        raise ValueError(f"Unsupported CAN backend: {backend}")
+    return backend
+
+
+def connection_info(backend: str, channel: str, bitrate: int) -> str:
+    backend = normalize_backend(backend)
+    if backend == "virtual":
+        return f"virtual:{channel or 'j1939-simulator'}"
+    return f"{channel} @ {bitrate} bit/s"
 
 
 class PCanInterface(QObject):
@@ -34,11 +67,13 @@ class PCanInterface(QObject):
 
     def __init__(
         self,
+        backend: str = DEFAULT_BACKEND,
         channel: str = DEFAULT_CHANNEL,
         bitrate: int = DEFAULT_BITRATE,
         parent: Optional[QObject] = None,
     ):
         super().__init__(parent)
+        self.backend = normalize_backend(backend)
         self.channel = channel
         self.bitrate = bitrate
         self._bus = None  # PCAN thread tarafından okunur/yazılır
@@ -93,24 +128,22 @@ class PCanInterface(QObject):
     def _do_connect(self) -> None:
         if self._bus is not None:
             self.connection_changed.emit(
-                True, f"{self.channel} @ {self.bitrate} bit/s"
+                True, connection_info(self.backend, self.channel, self.bitrate)
             )
             return
         try:
             import can  # tembel import: paket yoksa UI yine de açılır
 
-            self._bus = can.Bus(
-                interface="pcan",
-                channel=self.channel,
-                bitrate=self.bitrate,
-            )
+            self._bus = can.Bus(**build_bus_kwargs(self.backend, self.channel, self.bitrate))
             self._last_error = ""
             self.connection_changed.emit(
-                True, f"{self.channel} @ {self.bitrate} bit/s"
+                True, connection_info(self.backend, self.channel, self.bitrate)
             )
         except Exception as exc:  # pragma: no cover - donanım/sürücü bağımlı
             self._bus = None
-            self._last_error = str(exc)
+            self._last_error = (
+                f"{self.backend} backend failed for {self.channel}: {exc}"
+            )
             self.connection_changed.emit(False, self._last_error)
 
     @pyqtSlot()

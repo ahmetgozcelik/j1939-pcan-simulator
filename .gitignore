@@ -5,4 +5,5 @@ __pycache__/
 dist/
 build/
 *.spec
+PCANBasic.dll
 .j1939_simulator/

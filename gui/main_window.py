@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (
 import config_manager as cfg
 from can_interface import PCanInterface
 from config_manager import (
+    AdapterSettings,
     DEFAULT_CONFIG,
     ConfigIOWorker,
     DM1Config,
@@ -64,8 +65,13 @@ class MainWindow(QMainWindow):
         self._reporter = reporter
         self.workspace: Workspace = Workspace()
         self.current_path: Optional[str] = None
+        self.adapter_settings = cfg.load_adapter_settings()
 
-        self.pcan = PCanInterface()
+        self.pcan = PCanInterface(
+            backend=self.adapter_settings.backend,
+            channel=self.adapter_settings.channel,
+            bitrate=self.adapter_settings.bitrate,
+        )
         self.pcan.start()
         self.engine = SimulatorEngine(self.pcan)
 
@@ -74,6 +80,7 @@ class MainWindow(QMainWindow):
 
         self._build_panels()
         self._build_toolbar()
+        self._apply_adapter_settings_to_ui()
 
         self.engine.frame_sent.connect(self.log_panel.append_frame, Qt.QueuedConnection)
         self.engine.frame_sent.connect(self._on_frame_sent_refresh_panels, Qt.QueuedConnection)
@@ -342,7 +349,15 @@ class MainWindow(QMainWindow):
         bitrate = bitrate_map.get(
             self.message_panel.combo_bitrate.currentText(), 250000
         )
+        backend = self.message_panel.combo_backend.currentData() or "pcan"
         channel = self.message_panel.combo_channel.currentText()
+        self.adapter_settings = AdapterSettings(
+            backend=backend,
+            channel=channel,
+            bitrate=bitrate,
+        )
+        cfg.save_adapter_settings(self.adapter_settings)
+        self.pcan.backend = backend
         self.pcan.bitrate = bitrate
         self.pcan.channel = channel
         self.pcan.request_disconnect.emit()
@@ -351,6 +366,30 @@ class MainWindow(QMainWindow):
     @safe_action
     def _on_connection_changed(self, connected: bool, info: str) -> None:
         self.message_panel.update_connection_status(connected, info)
+
+    def _apply_adapter_settings_to_ui(self) -> None:
+        backend_idx = self.message_panel.combo_backend.findData(
+            self.adapter_settings.backend
+        )
+        if backend_idx >= 0:
+            self.message_panel.combo_backend.setCurrentIndex(backend_idx)
+
+        channel_idx = self.message_panel.combo_channel.findText(
+            self.adapter_settings.channel
+        )
+        if channel_idx >= 0:
+            self.message_panel.combo_channel.setCurrentIndex(channel_idx)
+
+        bitrate_text = {
+            125000: "125 kbps",
+            250000: "250 kbps",
+            500000: "500 kbps",
+            1000000: "1 Mbps",
+        }.get(self.adapter_settings.bitrate)
+        if bitrate_text:
+            bitrate_idx = self.message_panel.combo_bitrate.findText(bitrate_text)
+            if bitrate_idx >= 0:
+                self.message_panel.combo_bitrate.setCurrentIndex(bitrate_idx)
 
     # ------------------------------------------------------------------
     # Engine control
