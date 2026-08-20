@@ -8,17 +8,20 @@ from typing import Optional
 from PyQt5.QtCore import QProcess, Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
-    QCheckBox,
+    QAbstractButton,
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -27,7 +30,6 @@ from config_manager import Message
 from dm1_definitions import (
     CONFIG_PATH,
     get_lamp,
-    lamp_sequence_label,
     load_dm1_definitions,
     set_lamp,
 )
@@ -43,10 +45,9 @@ class DM1Panel(QWidget):
         self.engine = engine
         self.message: Optional[Message] = None
         self.dm1_definitions = load_dm1_definitions()
-        self.lamp_checkboxes: dict[str, QCheckBox] = {}
-        self.flash_lamp_checkboxes: dict[str, QCheckBox] = {}
-        self.lamp_fixed_layout: Optional[QVBoxLayout] = None
-        self.flash_lamp_layout: Optional[QVBoxLayout] = None
+        self.lamp_checkboxes: dict[str, QAbstractButton] = {}
+        self.flash_lamp_checkboxes: dict[str, QAbstractButton] = {}
+        self.lamp_matrix_layout: Optional[QGridLayout] = None
         self._loading = False
         self._build_ui()
 
@@ -60,6 +61,9 @@ class DM1Panel(QWidget):
         f.setBold(True)
         f.setPointSize(f.pointSize() + 1)
         self.title.setFont(f)
+        self.title.setObjectName("PanelTitle")
+        self.title.setWordWrap(True)
+        self.title.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         layout.addWidget(self.title)
 
         # Lamp Status
@@ -70,13 +74,16 @@ class DM1Panel(QWidget):
         lamp_mode_row.addWidget(QLabel("Mode:"))
         self.cmb_lamp_mode = QComboBox()
         self.cmb_lamp_mode.addItems(["Fixed", "Auto (cycle)"])
+        self.cmb_lamp_mode.setFixedWidth(140)
         self.cmb_lamp_mode.currentIndexChanged.connect(self._on_lamp_mode_changed)
         lamp_mode_row.addWidget(self.cmb_lamp_mode)
         lamp_mode_row.addStretch()
         self.btn_open_definitions = QPushButton("Edit JSON...")
+        self.btn_open_definitions.setFixedWidth(112)
         self.btn_open_definitions.setToolTip(f"Open {DEFINITION_DISPLAY_PATH}")
         self.btn_open_definitions.clicked.connect(self._open_definitions)
         self.btn_reload_definitions = QPushButton("Reload JSON")
+        self.btn_reload_definitions.setFixedWidth(112)
         self.btn_reload_definitions.setToolTip("Reload DM1 definitions after editing the JSON file")
         self.btn_reload_definitions.clicked.connect(self._reload_definitions)
         lamp_mode_row.addWidget(self.btn_open_definitions)
@@ -89,42 +96,38 @@ class DM1Panel(QWidget):
         self.lbl_definitions_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
         lamp_main.addWidget(self.lbl_definitions_status)
 
-        self.lamp_fixed_widget = QWidget()
-        self.lamp_fixed_layout = QVBoxLayout(self.lamp_fixed_widget)
-        self.lamp_fixed_layout.setContentsMargins(0, 0, 0, 0)
-        self.lamp_fixed_layout.setSpacing(6)
-        self._populate_lamp_checkboxes(self.lamp_fixed_layout, self.lamp_checkboxes)
-        lamp_main.addWidget(self.lamp_fixed_widget)
+        self.lbl_lamp_mode_hint = QLabel("Status lamps are manual in Fixed mode. Flash lamps remain manual.")
+        self.lbl_lamp_mode_hint.setObjectName("SecondaryText")
+        self.lbl_lamp_mode_hint.setWordWrap(True)
+        lamp_main.addWidget(self.lbl_lamp_mode_hint)
 
-        self.flash_lamp_widget = QWidget()
-        flash_outer = QVBoxLayout(self.flash_lamp_widget)
-        flash_outer.setContentsMargins(0, 6, 0, 0)
-        flash_outer.setSpacing(6)
-        flash_title = QLabel("Flash Lamp Status")
-        flash_title.setObjectName("SecondaryText")
-        flash_outer.addWidget(flash_title)
-        self.flash_lamp_layout = QVBoxLayout()
-        self.flash_lamp_layout.setContentsMargins(0, 0, 0, 0)
-        self.flash_lamp_layout.setSpacing(6)
-        flash_outer.addLayout(self.flash_lamp_layout)
-        self._populate_lamp_checkboxes(
-            self.flash_lamp_layout,
-            self.flash_lamp_checkboxes,
-            flash=True,
-        )
-        lamp_main.addWidget(self.flash_lamp_widget)
+        self.lamp_matrix_widget = QWidget()
+        self.lamp_matrix_widget.setObjectName("LampMatrix")
+        self.lamp_matrix_layout = QGridLayout(self.lamp_matrix_widget)
+        self.lamp_matrix_layout.setContentsMargins(0, 0, 0, 0)
+        self.lamp_matrix_layout.setHorizontalSpacing(8)
+        self.lamp_matrix_layout.setVerticalSpacing(6)
+        self._populate_lamp_matrix()
+        lamp_main.addWidget(self.lamp_matrix_widget)
 
         self.lamp_auto_widget = QWidget()
         lamp_auto_layout = QHBoxLayout(self.lamp_auto_widget)
         lamp_auto_layout.setContentsMargins(0, 0, 0, 0)
-        lamp_auto_layout.addWidget(QLabel("Cycle Period (s):"))
+        lbl_cycle_period = QLabel("Cycle Period (s):")
+        lbl_cycle_period.setFixedWidth(112)
+        lamp_auto_layout.addWidget(lbl_cycle_period)
         self.spin_lamp_interval = QDoubleSpinBox()
         self.spin_lamp_interval.setRange(0.1, 60.0)
         self.spin_lamp_interval.setValue(2.0)
+        self.spin_lamp_interval.setFixedWidth(96)
         self.spin_lamp_interval.setSingleStep(0.5)
         self.spin_lamp_interval.valueChanged.connect(self._on_changed)
         lamp_auto_layout.addWidget(self.spin_lamp_interval)
-        lamp_auto_layout.addWidget(QLabel(lamp_sequence_label(self.dm1_definitions)))
+        self.lbl_lamp_sequence = QLabel(self._lamp_cycle_text())
+        self.lbl_lamp_sequence.setObjectName("SecondaryText")
+        self.lbl_lamp_sequence.setWordWrap(True)
+        self.lbl_lamp_sequence.setMaximumWidth(220)
+        lamp_auto_layout.addWidget(self.lbl_lamp_sequence, 1)
         lamp_auto_layout.addStretch()
         self.lamp_auto_widget.setVisible(False)
         lamp_main.addWidget(self.lamp_auto_widget)
@@ -217,17 +220,31 @@ class DM1Panel(QWidget):
 
         # FMI / OC
         dtc_group = QGroupBox("DTC Detail")
-        form = QFormLayout(dtc_group)
+        dtc_layout = QGridLayout(dtc_group)
+        dtc_layout.setHorizontalSpacing(10)
+        dtc_layout.setVerticalSpacing(8)
 
         self.cmb_fmi = QComboBox()
+        self.cmb_fmi.setMinimumContentsLength(16)
+        self.cmb_fmi.setFixedWidth(320)
+        self.cmb_fmi.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self._populate_fmi_combo()
         self.cmb_fmi.currentIndexChanged.connect(self._on_changed)
-        form.addRow("FMI:", self.cmb_fmi)
+        lbl_fmi = QLabel("FMI:")
+        lbl_fmi.setFixedWidth(132)
+        dtc_layout.addWidget(lbl_fmi, 0, 0)
+        dtc_layout.addWidget(self.cmb_fmi, 0, 1)
 
+        lbl_occurrence = QLabel("Occurrence Count:")
+        lbl_occurrence.setFixedWidth(132)
+        lbl_occurrence.setToolTip("J1939 DTC occurrence count range: 0..126")
         self.spin_oc = QSpinBox()
         self.spin_oc.setRange(0, 126)
         self.spin_oc.valueChanged.connect(self._on_changed)
-        form.addRow("Occurrence Count (0..126):", self.spin_oc)
+        self.spin_oc.setFixedWidth(96)
+        dtc_layout.addWidget(lbl_occurrence, 1, 0)
+        dtc_layout.addWidget(self.spin_oc, 1, 1)
+        dtc_layout.setColumnStretch(1, 1)
         layout.addWidget(dtc_group)
 
         # Preview / Send
@@ -261,13 +278,16 @@ class DM1Panel(QWidget):
         try:
             if msg is None:
                 self.title.setText("DM1")
+                self.title.setToolTip("")
                 self._refresh_preview()
                 return
             self.title.setText(f"{msg.can_id}  {msg.name}")
+            self.title.setToolTip(f"{msg.can_id}  {msg.name}")
             state = self.engine.get_dm1_state(msg.can_id)
 
             lamp_mode_idx = 1 if state.lamp_mode == "auto" else 0
             self.cmb_lamp_mode.setCurrentIndex(lamp_mode_idx)
+            self._sync_lamp_mode_enabled()
             for key, checkbox in self.lamp_checkboxes.items():
                 checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
             for key, checkbox in self.flash_lamp_checkboxes.items():
@@ -297,13 +317,8 @@ class DM1Panel(QWidget):
     # Internal
     # ------------------------------------------------------------------
 
-    def _populate_lamp_checkboxes(
-        self,
-        layout: Optional[QVBoxLayout],
-        target: dict[str, QCheckBox],
-        *,
-        flash: bool = False,
-    ) -> None:
+    def _populate_lamp_matrix(self) -> None:
+        layout = self.lamp_matrix_layout
         if layout is None:
             return
         while layout.count():
@@ -311,16 +326,62 @@ class DM1Panel(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-        target.clear()
-        for lamp in self.dm1_definitions.lamps:
-            cb = QCheckBox(lamp.label)
-            cb.setMinimumWidth(280)
-            prefix = "flash lamp status" if flash else "lamp status"
-            cb.setToolTip(f"{lamp.label} - DM1/DM2 {prefix} bits {lamp.bit}..{lamp.bit + 1}")
-            cb.toggled.connect(self._on_changed)
-            layout.addWidget(cb)
-            target[lamp.key] = cb
-        layout.addStretch(1)
+        self.lamp_checkboxes.clear()
+        self.flash_lamp_checkboxes.clear()
+
+        for column, text in enumerate(("Lamp", "Status", "Flash")):
+            header = QLabel(text)
+            header.setObjectName("LampMatrixHeader")
+            layout.addWidget(header, 0, column)
+
+        for row, lamp in enumerate(self.dm1_definitions.lamps, start=1):
+            display_label = self._lamp_display_label(lamp.key, lamp.label)
+            name = QLabel(display_label)
+            name.setObjectName("LampMatrixLabel")
+            name.setToolTip(f"{lamp.label} - DM1/DM2 bits {lamp.bit}..{lamp.bit + 1}")
+            name.setMinimumWidth(112)
+            layout.addWidget(name, row, 0)
+
+            status_btn = self._create_lamp_button(lamp.label, lamp.bit, flash=False)
+            flash_btn = self._create_lamp_button(lamp.label, lamp.bit, flash=True)
+            layout.addWidget(status_btn, row, 1)
+            layout.addWidget(flash_btn, row, 2)
+            self.lamp_checkboxes[lamp.key] = status_btn
+            self.flash_lamp_checkboxes[lamp.key] = flash_btn
+
+        layout.setColumnStretch(0, 3)
+        layout.setColumnStretch(1, 2)
+        layout.setColumnStretch(2, 2)
+
+    def _lamp_display_label(self, key: str, label: str) -> str:
+        return {
+            "red": "Red Stop",
+            "amber": "Amber Warn",
+            "protect": "Protect",
+            "mil": "MIL",
+        }.get(key, label)
+
+    def _lamp_cycle_text(self) -> str:
+        return "Cycle: Red -> Amber -> Protect -> All"
+
+    def _create_lamp_button(self, label: str, bit: int, *, flash: bool) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("LampStatusTile")
+        button.setCheckable(True)
+        button.setMinimumHeight(34)
+        button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        kind = "Flash" if flash else "Status"
+        button.setToolTip(f"{label} - {kind} bits {bit}..{bit + 1}")
+        button.toggled.connect(lambda checked, btn=button: self._update_lamp_button(btn, checked))
+        button.toggled.connect(self._on_changed)
+        self._update_lamp_button(button, False)
+        return button
+
+    def _update_lamp_button(self, button: QAbstractButton, checked: bool) -> None:
+        button.setProperty("active", checked)
+        button.setText("ON" if checked else "OFF")
+        button.style().unpolish(button)
+        button.style().polish(button)
 
     def _populate_fmi_combo(self) -> None:
         current = self.cmb_fmi.currentData() if hasattr(self, "cmb_fmi") else 0
@@ -329,6 +390,7 @@ class DM1Panel(QWidget):
         for fmi in range(0, 32):
             desc = self.dm1_definitions.fmi_descriptions.get(fmi, "Reserved")
             self.cmb_fmi.addItem(f"{fmi} - {desc}", fmi)
+            self.cmb_fmi.setItemData(self.cmb_fmi.count() - 1, desc, Qt.ToolTipRole)
         idx = self.cmb_fmi.findData(current)
         self.cmb_fmi.setCurrentIndex(idx if idx >= 0 else 0)
         self.cmb_fmi.blockSignals(False)
@@ -347,12 +409,9 @@ class DM1Panel(QWidget):
     def _reload_definitions(self) -> None:
         state = self._current_state()
         self.dm1_definitions = load_dm1_definitions()
-        self._populate_lamp_checkboxes(self.lamp_fixed_layout, self.lamp_checkboxes)
-        self._populate_lamp_checkboxes(
-            self.flash_lamp_layout,
-            self.flash_lamp_checkboxes,
-            flash=True,
-        )
+        self._populate_lamp_matrix()
+        self.lbl_lamp_sequence.setText(self._lamp_cycle_text())
+        self._sync_lamp_mode_enabled()
         self._populate_fmi_combo()
         for key, checkbox in self.lamp_checkboxes.items():
             try:
@@ -372,9 +431,18 @@ class DM1Panel(QWidget):
 
     def _on_lamp_mode_changed(self) -> None:
         is_auto = self.cmb_lamp_mode.currentIndex() == 1
-        self.lamp_fixed_widget.setVisible(not is_auto)
+        self._sync_lamp_mode_enabled()
         self.lamp_auto_widget.setVisible(is_auto)
         self._on_changed()
+
+    def _sync_lamp_mode_enabled(self) -> None:
+        is_auto = self.cmb_lamp_mode.currentIndex() == 1
+        for button in self.lamp_checkboxes.values():
+            button.setEnabled(not is_auto)
+        if is_auto:
+            self.lbl_lamp_mode_hint.setText("Status lamps follow the auto cycle. Flash lamps remain manual.")
+        else:
+            self.lbl_lamp_mode_hint.setText("Status lamps are manual in Fixed mode. Flash lamps remain manual.")
 
     def _on_spn_mode_changed(self) -> None:
         self.spn_stack.setCurrentIndex(self.cmb_spn_mode.currentIndex())

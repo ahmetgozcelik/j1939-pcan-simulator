@@ -348,6 +348,60 @@ QLabel#ScaleError {
     font-weight: 600;
 }
 
+QLabel#SecondaryText {
+    color: #8B949E;
+    font-size: 9pt;
+}
+
+QLabel#LampMatrixHeader {
+    color: #8B949E;
+    font-size: 8.5pt;
+    font-weight: 700;
+}
+
+QLabel#LampMatrixLabel {
+    color: #E6EDF3;
+    font-weight: 600;
+    padding: 5px 0;
+}
+
+QWidget#LampMatrix {
+    background-color: #0D1117;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+QToolButton#LampStatusTile {
+    min-height: 30px;
+    color: #8B949E;
+    background-color: #161B22;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 5px;
+    font-weight: 800;
+    padding: 4px 10px;
+}
+
+QToolButton#LampStatusTile:hover {
+    border-color: rgba(79,195,247,0.65);
+}
+
+QToolButton#LampStatusTile:pressed {
+    background-color: rgba(79,195,247,0.14);
+}
+
+QToolButton#LampStatusTile[active="true"] {
+    color: #0D1117;
+    background-color: #3ADB76;
+    border-color: #3ADB76;
+}
+
+QToolButton#LampStatusTile:disabled {
+    color: #4D555E;
+    background-color: #0D1117;
+    border-color: rgba(255,255,255,0.08);
+}
+
 QLabel#FrameBytes {
     color: #E6EDF3;
     background-color: #0D1117;

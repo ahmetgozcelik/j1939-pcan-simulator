@@ -33,7 +33,7 @@ from PyQt5.QtWidgets import (
 from config_manager import Message, Workspace, clone_message
 from gui.table_delegates import MessageTableDelegate, ROLE_ACTIVE_STATE, ROLE_TYPE_KIND
 from gui.theme import repolish, theme_color
-from j1939_id import PgnCategory, build_can_id, format_can_id, parse_can_id
+from j1939_id import PGN_DM1, PGN_DM2, PgnCategory, build_can_id, format_can_id, parse_can_id
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +233,7 @@ class MessageTableModel(QAbstractTableModel):
                     return False
             except ValueError:
                 return False
+            _apply_protocol_default_name(msg)
             left = self.index(index.row(), 0)
             right = self.index(index.row(), len(COLS) - 1)
             self.dataChanged.emit(left, right, [Qt.DisplayRole])
@@ -639,6 +640,19 @@ def _category_label(category: PgnCategory) -> str:
         PgnCategory.PROPRIETARY_B: "prop B",
         PgnCategory.UNKNOWN: "unknown",
     }[category]
+
+
+def _apply_protocol_default_name(msg: Message) -> None:
+    if msg.name not in {"", "Message", "New J1939 Message"}:
+        return
+    try:
+        parsed = parse_can_id(msg.can_id)
+    except ValueError:
+        return
+    if parsed.pgn == PGN_DM1:
+        msg.name = "DM1 - Active Diagnostic Trouble Codes"
+    elif parsed.pgn == PGN_DM2:
+        msg.name = "DM2 - Previously Active Diagnostic Trouble Codes"
 
 
 def _category_tooltip(category: PgnCategory) -> str:

@@ -6,7 +6,7 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt5.QtWidgets import QApplication, QAbstractButton, QGroupBox, QLabel
+from PyQt5.QtWidgets import QApplication, QAbstractButton, QGroupBox, QLabel, QToolButton
 
 from dm1_definitions import (
     build_lamp_status,
@@ -108,10 +108,11 @@ class DM1DefinitionsTests(unittest.TestCase):
         self.assertEqual(panel.btn_open_definitions.text(), "Edit JSON...")
         self.assertEqual(panel.btn_reload_definitions.text(), "Reload JSON")
         self.assertIn("Definition file:", panel.lbl_definitions_status.text())
-        for checkbox in panel.lamp_checkboxes.values():
-            self.assertGreaterEqual(checkbox.minimumWidth(), 280)
-        for checkbox in panel.flash_lamp_checkboxes.values():
-            self.assertGreaterEqual(checkbox.minimumWidth(), 280)
+        self.assertEqual(panel.lamp_matrix_layout.columnCount(), 3)
+        for button in list(panel.lamp_checkboxes.values()) + list(panel.flash_lamp_checkboxes.values()):
+            self.assertIsInstance(button, QToolButton)
+            self.assertGreaterEqual(button.minimumHeight(), 34)
+            self.assertIn(button.text(), {"OFF", "ON"})
 
     def test_reload_reports_what_changed(self):
         panel = DM1Panel(FakeEngine())

@@ -54,6 +54,15 @@ class MessagePanelBehaviorTests(unittest.TestCase):
 
         self.assertEqual(panel.btn_start_all.text(), "Start Active")
 
+    def test_new_message_name_updates_when_pgn_becomes_dm2(self):
+        ws = Workspace(messages=[Message(can_id="18FF0080", name="New J1939 Message")])
+        panel = MessagePanel()
+        panel.set_workspace(ws)
+
+        self.assertTrue(panel.model.setData(panel.model.index(0, 2), "0FECB"))
+
+        self.assertEqual(ws.messages[0].name, "DM2 - Previously Active Diagnostic Trouble Codes")
+
     def test_add_signal_uses_first_free_byte(self):
         msg = Message(signals=[
             Signal(byte_pos=0, bit_pos=0, bit_length=8),
