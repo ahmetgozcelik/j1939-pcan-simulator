@@ -6,6 +6,7 @@ böylece kolayca test edilebilir.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Iterable
 
 from config_manager import Message, Signal
@@ -145,32 +146,87 @@ def build_frame(message: Message, raw_overrides: dict | None = None) -> bytes:
 # ---------------------------------------------------------------------------
 
 
-def build_dm1_frame(lamp_status: int, spn: int, fmi: int, oc: int) -> bytes:
+@dataclass(frozen=True)
+class DiagnosticTroubleCode:
+    spn: int
+    fmi: int
+    occurrence_count: int
+    conversion_method: int = 0
+
+
+def build_dm1_frame(
+    lamp_status: int,
+    spn: int,
+    fmi: int,
+    oc: int,
+    flash_lamp_status: int = 0xFF,
+    conversion_method: int = 0,
+) -> bytes:
     """Tek bir DTC içeren DM1 çerçevesi.
 
-    Spesifikasyon (kullanıcının verdiği basit form):
+    J1939-73 tek-frame DM1 düzeni:
         Byte 0: lamp_status
-        Byte 1: 0xFF
+        Byte 1: flash_lamp_status
         Byte 2: SPN[0:7]
         Byte 3: SPN[8:15]
         Byte 4: (SPN[16:18] << 5) | (FMI & 0x1F)
-        Byte 5: occurrence count (0..126, bit 7 conversion = 0)
+        Byte 5: occurrence count (0..126) + conversion method bit 7
         Byte 6: 0xFF
         Byte 7: 0xFF
     """
+    return build_dm1_frame_from_dtcs(
+        lamp_status,
+        [DiagnosticTroubleCode(spn, fmi, oc, conversion_method)],
+        flash_lamp_status=flash_lamp_status,
+    )
+
+
+def build_dm1_frame_from_dtcs(
+    lamp_status: int,
+    dtcs: Iterable[DiagnosticTroubleCode],
+    flash_lamp_status: int = 0xFF,
+) -> bytes:
+    """Build a single-frame DM1 payload.
+
+    A single 8-byte DM1 frame can carry lamp status, flash lamp status, and at
+    most one DTC. More DTCs require J1939 Transport Protocol support.
+    """
+    dtc_list = list(dtcs)
+    if len(dtc_list) > 1:
+        raise ValueError("Multiple DM1 DTCs require J1939 Transport Protocol")
+
+    frame = bytearray(b"\xFF" * FRAME_LEN)
+    frame[0] = lamp_status & 0xFF
+    frame[1] = flash_lamp_status & 0xFF
+    if not dtc_list:
+        return bytes(frame)
+
+    _pack_dm1_dtc(frame, 2, dtc_list[0])
+    return bytes(frame)
+
+
+def _pack_dm1_dtc(frame: bytearray, start_byte: int, dtc: DiagnosticTroubleCode) -> None:
+    spn = dtc.spn
+    fmi = dtc.fmi
+    oc = dtc.occurrence_count
+    conversion_method = dtc.conversion_method
+
+    if not 0 <= spn <= 0x7FFFF:
+        raise ValueError(f"SPN must be in 0..524287, got {spn!r}")
+    if not 0 <= fmi <= 0x1F:
+        raise ValueError(f"FMI must be in 0..31, got {fmi!r}")
+    if not 0 <= oc <= 0x7E:
+        raise ValueError(f"Occurrence count must be in 0..126, got {oc!r}")
+    if conversion_method not in (0, 1):
+        raise ValueError(f"Conversion method must be 0 or 1, got {conversion_method!r}")
+
     spn &= 0x7FFFF
     fmi &= 0x1F
     oc &= 0x7F
-    frame = bytearray(8)
-    frame[0] = lamp_status & 0xFF
-    frame[1] = 0xFF
-    frame[2] = spn & 0xFF
-    frame[3] = (spn >> 8) & 0xFF
-    frame[4] = (((spn >> 16) & 0x07) << 5) | (fmi & 0x1F)
-    frame[5] = oc & 0x7F
-    frame[6] = 0xFF
-    frame[7] = 0xFF
-    return bytes(frame)
+    frame[start_byte] = spn & 0xFF
+    frame[start_byte + 1] = (spn >> 8) & 0xFF
+    frame[start_byte + 2] = (((spn >> 16) & 0x07) << 5) | fmi
+    frame[start_byte + 3] = ((conversion_method & 0x01) << 7) | oc
 
 
 # ---------------------------------------------------------------------------
