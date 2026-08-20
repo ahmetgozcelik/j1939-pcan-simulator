@@ -17,7 +17,7 @@ from PyQt5.QtCore import (
     Qt,
     pyqtSignal,
 )
-from PyQt5.QtGui import QColor
+from PyQt5.QtGui import QColor, QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
 )
 
 from config_manager import Message, Workspace, clone_message
-from j1939_id import build_can_id, format_can_id, parse_can_id
+from j1939_id import PgnCategory, build_can_id, format_can_id, parse_can_id
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +58,16 @@ def _safe_slot(fn):
 
 COL_ACTIVE = 0
 COL_ID = 1
-COL_NAME = 2
-COL_CYCLE = 3
-COLS = ["Active", "CAN ID", "Name", "Cycle ms"]
+COL_PGN = 2
+COL_PRIORITY = 3
+COL_SA = 4
+COL_DA_GE = 5
+COL_TYPE = 6
+COL_NAME = 7
+COL_CYCLE = 8
+COLS = ["Active", "CAN ID", "PGN", "Prio", "SA", "DA/GE", "Type", "Name", "Cycle ms"]
 DEFAULT_NEW_MESSAGE_PGN = 0x00FF00
+MONOSPACE_COLS = {COL_ID, COL_PGN, COL_SA, COL_DA_GE}
 
 
 class MessageTableModel(QAbstractTableModel):
@@ -108,17 +114,46 @@ class MessageTableModel(QAbstractTableModel):
             return None
         msg = self.messages()[index.row()]
         col = index.column()
+        parsed = _parse_message_id(msg)
         if role == Qt.CheckStateRole and col == COL_ACTIVE:
             return Qt.Checked if msg.active else Qt.Unchecked
         if role in (Qt.DisplayRole, Qt.EditRole):
             if col == COL_ID:
                 return msg.can_id
+            if col == COL_PGN:
+                return f"{parsed.pgn:05X}" if parsed else ""
+            if col == COL_PRIORITY:
+                return parsed.priority if parsed else ""
+            if col == COL_SA:
+                return f"{parsed.source_address:02X}" if parsed else ""
+            if col == COL_DA_GE:
+                if not parsed:
+                    return ""
+                if parsed.destination_address is not None:
+                    return f"DA {parsed.destination_address:02X}"
+                return f"GE {parsed.group_extension:02X}"
+            if col == COL_TYPE:
+                return _category_label(parsed.category) if parsed else "invalid"
             if col == COL_NAME:
                 return msg.name
             if col == COL_CYCLE:
                 return int(msg.cycle_ms)
-        if role == Qt.ForegroundRole and col == COL_ID and msg.is_dm1():
-            return QColor(255, 200, 100)
+        if role == Qt.ForegroundRole:
+            if parsed is None:
+                return QColor(255, 107, 95)
+            if col in (COL_ID, COL_PGN, COL_TYPE):
+                return _category_color(parsed.category)
+        if role == Qt.FontRole and col in MONOSPACE_COLS:
+            font = QFont("Consolas")
+            font.setStyleHint(QFont.Monospace)
+            return font
+        if role == Qt.ToolTipRole:
+            if parsed is None:
+                return "Invalid 29-bit J1939 CAN ID"
+            if col == COL_TYPE:
+                return _category_tooltip(parsed.category)
+            if col == COL_DA_GE:
+                return "Destination address" if parsed.is_pdu1 else "Group extension"
         return None
 
     def setData(self, index: QModelIndex, value, role=Qt.EditRole) -> bool:
@@ -229,9 +264,9 @@ class MessagePanel(QWidget):
         self.table.verticalHeader().setVisible(False)
         hh = self.table.horizontalHeader()
         hh.setSectionResizeMode(COL_ACTIVE, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(COL_ID, QHeaderView.ResizeToContents)
+        for col in (COL_ACTIVE, COL_ID, COL_PGN, COL_PRIORITY, COL_SA, COL_DA_GE, COL_TYPE, COL_CYCLE):
+            hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
         hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        hh.setSectionResizeMode(COL_CYCLE, QHeaderView.ResizeToContents)
         self.table.setEditTriggers(
             QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked
         )
@@ -286,9 +321,9 @@ class MessagePanel(QWidget):
     def update_connection_status(self, connected: bool, info: str) -> None:
         self._set_led(connected)
         if connected:
-            text = f"PCAN: connected ({info})"
+            text = f"CAN: connected ({info})"
         else:
-            text = "PCAN: disconnected"
+            text = "CAN: disconnected"
             if info:
                 text += f" - {info}"
         self.lbl_status.setText(text)
@@ -417,3 +452,46 @@ def _suggest_unique_can_id(base_can_id: int | str, used_ids: set[str]) -> str:
             return candidate_hex
 
     return parsed.to_hex()
+
+
+def _parse_message_id(msg: Message):
+    try:
+        return parse_can_id(msg.can_id)
+    except ValueError:
+        return None
+
+
+def _category_label(category: PgnCategory) -> str:
+    return {
+        PgnCategory.STANDARD: "standard",
+        PgnCategory.REQUEST: "request",
+        PgnCategory.TRANSPORT: "transport",
+        PgnCategory.DIAGNOSTIC: "diagnostic",
+        PgnCategory.PROPRIETARY_A: "prop A",
+        PgnCategory.PROPRIETARY_B: "prop B",
+        PgnCategory.UNKNOWN: "unknown",
+    }[category]
+
+
+def _category_tooltip(category: PgnCategory) -> str:
+    return {
+        PgnCategory.STANDARD: "Standard SAE J1939 PGN",
+        PgnCategory.REQUEST: "J1939 request PGN",
+        PgnCategory.TRANSPORT: "J1939 transport protocol PGN",
+        PgnCategory.DIAGNOSTIC: "J1939 diagnostic PGN",
+        PgnCategory.PROPRIETARY_A: "J1939 proprietary A PGN",
+        PgnCategory.PROPRIETARY_B: "J1939 proprietary B PGN",
+        PgnCategory.UNKNOWN: "Unknown PGN category",
+    }[category]
+
+
+def _category_color(category: PgnCategory) -> QColor:
+    return {
+        PgnCategory.STANDARD: QColor(220, 226, 232),
+        PgnCategory.REQUEST: QColor(133, 193, 255),
+        PgnCategory.TRANSPORT: QColor(147, 217, 170),
+        PgnCategory.DIAGNOSTIC: QColor(255, 200, 100),
+        PgnCategory.PROPRIETARY_A: QColor(220, 180, 255),
+        PgnCategory.PROPRIETARY_B: QColor(220, 180, 255),
+        PgnCategory.UNKNOWN: QColor(255, 107, 95),
+    }[category]

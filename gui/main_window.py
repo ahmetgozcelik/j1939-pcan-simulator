@@ -18,6 +18,7 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QSplitter,
     QStackedWidget,
+    QStyle,
     QToolBar,
     QToolButton,
 )
@@ -39,6 +40,7 @@ from gui.message_panel import MessagePanel
 from gui.signal_detail import SignalDetail
 from gui.signal_panel import SignalPanel
 from simulator_engine import DM1State, SimulatorEngine
+from validators import validate_workspace
 
 
 def safe_action(fn):
@@ -54,6 +56,17 @@ def safe_action(fn):
                 import sys
                 sys.__stderr__.write(tb)
     return wrapper
+
+
+def validation_status_text(workspace: Workspace) -> str:
+    issues = validate_workspace(workspace)
+    errors = sum(1 for issue in issues if issue.severity == "error")
+    warnings = sum(1 for issue in issues if issue.severity == "warning")
+    if errors:
+        return f"Validation: {errors} error(s), {warnings} warning(s)"
+    if warnings:
+        return f"Validation: OK, {warnings} warning(s)"
+    return "Validation: OK"
 
 
 class MainWindow(QMainWindow):
@@ -81,6 +94,7 @@ class MainWindow(QMainWindow):
         self._build_panels()
         self._build_toolbar()
         self._apply_adapter_settings_to_ui()
+        self._refresh_validation_status()
 
         self.engine.frame_sent.connect(self.log_panel.append_frame, Qt.QueuedConnection)
         self.engine.frame_sent.connect(self._on_frame_sent_refresh_panels, Qt.QueuedConnection)
@@ -155,27 +169,37 @@ class MainWindow(QMainWindow):
         self.addToolBar(tb)
 
         act_new = QAction("New", self)
+        act_new.setIcon(self.style().standardIcon(QStyle.SP_FileIcon))
         act_new.setShortcut(QKeySequence.New)
+        act_new.setToolTip("New configuration")
         act_new.triggered.connect(self._action_new)
         tb.addAction(act_new)
 
         act_open = QAction("Open...", self)
+        act_open.setIcon(self.style().standardIcon(QStyle.SP_DirOpenIcon))
         act_open.setShortcut(QKeySequence.Open)
+        act_open.setToolTip("Open configuration")
         act_open.triggered.connect(self._action_open)
         tb.addAction(act_open)
 
         act_save = QAction("Save", self)
+        act_save.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
         act_save.setShortcut(QKeySequence.Save)
+        act_save.setToolTip("Save configuration")
         act_save.triggered.connect(self._action_save)
         tb.addAction(act_save)
 
         act_save_as = QAction("Save As...", self)
+        act_save_as.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        act_save_as.setToolTip("Save configuration as a new file")
         act_save_as.triggered.connect(self._action_save_as)
         tb.addAction(act_save_as)
 
         # Recent menü
         self.recent_btn = QToolButton()
         self.recent_btn.setText("Recent")
+        self.recent_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
+        self.recent_btn.setToolTip("Open a recent configuration")
         self.recent_btn.setPopupMode(QToolButton.InstantPopup)
         self.recent_menu = QMenu(self.recent_btn)
         self.recent_btn.setMenu(self.recent_menu)
@@ -185,16 +209,22 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         act_start_all = QAction("Start Active", self)
+        act_start_all.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        act_start_all.setToolTip("Start active messages")
         act_start_all.triggered.connect(self._start_active)
         tb.addAction(act_start_all)
 
         act_stop_all = QAction("Stop All", self)
+        act_stop_all.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
+        act_stop_all.setToolTip("Stop all running messages")
         act_stop_all.triggered.connect(self._stop_all)
         tb.addAction(act_stop_all)
 
         tb.addSeparator()
 
         act_reconnect = QAction("Reconnect PCAN", self)
+        act_reconnect.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        act_reconnect.setToolTip("Reconnect selected CAN backend")
         act_reconnect.triggered.connect(self._reconnect)
         tb.addAction(act_reconnect)
 
@@ -262,6 +292,7 @@ class MainWindow(QMainWindow):
         self.workspace = Workspace()
         self.current_path = None
         self._refresh_workspace_ui()
+        self._refresh_validation_status()
         self.setWindowTitle("J1939 PCAN Simulator - (untitled)")
 
     @safe_action
@@ -316,6 +347,7 @@ class MainWindow(QMainWindow):
         # Yüklenen DM1 config'leri engine'e aktar
         self._load_dm1_states_from_workspace()
         self._refresh_workspace_ui()
+        self._refresh_validation_status()
         cfg.remember_path(self.current_path)
         self._rebuild_recent_menu()
         self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path}")
@@ -451,6 +483,7 @@ class MainWindow(QMainWindow):
     def _on_workspace_modified(self) -> None:
         if self.current_path:
             self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path} *")
+        self._refresh_validation_status()
 
     @safe_action
     def _on_frame_sent_refresh_panels(self, ts, can_id, data, decoded, sent_ok) -> None:
@@ -464,6 +497,10 @@ class MainWindow(QMainWindow):
 
     def _refresh_workspace_ui(self) -> None:
         self.message_panel.set_workspace(self.workspace)
+        self._refresh_validation_status()
+
+    def _refresh_validation_status(self) -> None:
+        self.statusBar().showMessage(validation_status_text(self.workspace))
 
     def _kickoff_initial_load(self) -> None:
         last = cfg.get_last_config_path()

@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import time
 from collections import deque
-from typing import Deque, List
+from typing import Deque, List, Tuple
 
 from PyQt5.QtCore import Qt, pyqtSlot
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
@@ -26,7 +29,7 @@ MAX_LINES = 200  # Hata satırları için biraz daha geniş tutalım
 class LogPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._lines: Deque[str] = deque(maxlen=MAX_LINES)
+        self._lines: Deque[Tuple[str, str]] = deque(maxlen=MAX_LINES)
         self._build_ui()
 
     # ------------------------------------------------------------------
@@ -41,6 +44,18 @@ class LogPanel(QWidget):
         header = QHBoxLayout()
         header.addWidget(QLabel("Frame Log"))
         header.addStretch(1)
+        self.combo_filter = QComboBox()
+        self.combo_filter.addItem("All", "all")
+        self.combo_filter.addItem("TX", "tx")
+        self.combo_filter.addItem("RX", "rx")
+        self.combo_filter.addItem("Error", "error")
+        self.combo_filter.currentIndexChanged.connect(self._refresh_view)
+        header.addWidget(self.combo_filter)
+        self.edt_filter = QLineEdit()
+        self.edt_filter.setPlaceholderText("CAN ID / PGN filter")
+        self.edt_filter.setClearButtonEnabled(True)
+        self.edt_filter.textChanged.connect(self._refresh_view)
+        header.addWidget(self.edt_filter)
         self.btn_clear = QPushButton("Clear")
         self.btn_clear.clicked.connect(self.clear)
         header.addWidget(self.btn_clear)
@@ -49,6 +64,9 @@ class LogPanel(QWidget):
         self.view = QPlainTextEdit()
         self.view.setReadOnly(True)
         self.view.setMaximumBlockCount(MAX_LINES)
+        font = QFont("Consolas")
+        font.setStyleHint(QFont.Monospace)
+        self.view.setFont(font)
         layout.addWidget(self.view)
 
     # ------------------------------------------------------------------
@@ -80,7 +98,7 @@ class LogPanel(QWidget):
         sig_str = " | " + " ; ".join(sig_parts) if sig_parts else ""
         prefix = "TX" if sent_ok else "--"
         line = f"[{ts_str}] {prefix} {can_id}  {bytes_str}{sig_str}"
-        self.view.appendPlainText(line)
+        self._append_line("tx" if sent_ok else "info", line)
 
     @pyqtSlot(str)
     def error(self, message: str) -> None:
@@ -91,9 +109,10 @@ class LogPanel(QWidget):
         ts_str = time.strftime("%H:%M:%S", local) + f".{ms:03d}"
         # Çok satırlı hatalar tek bir blokta okunsun.
         first_line, *rest = (message or "").rstrip().splitlines() or [""]
-        self.view.appendPlainText(f"[{ts_str}] !! ERROR: {first_line}")
+        lines = [f"[{ts_str}] !! ERROR: {first_line}"]
         for line in rest:
-            self.view.appendPlainText(f"             {line}")
+            lines.append(f"             {line}")
+        self._append_line("error", "\n".join(lines))
 
     @pyqtSlot(str, str)
     def send_error(self, can_id: str, error_text: str) -> None:
@@ -101,9 +120,32 @@ class LogPanel(QWidget):
         local = time.localtime(ts)
         ms = int((ts - int(ts)) * 1000)
         ts_str = time.strftime("%H:%M:%S", local) + f".{ms:03d}"
-        self.view.appendPlainText(
-            f"[{ts_str}] !! TX-FAIL {can_id}  {error_text}"
-        )
+        self._append_line("error", f"[{ts_str}] !! TX-FAIL {can_id}  {error_text}")
 
     def clear(self) -> None:
+        self._lines.clear()
         self.view.clear()
+
+    def _append_line(self, kind: str, line: str) -> None:
+        self._lines.append((kind, line))
+        if self._line_visible(kind, line):
+            self.view.appendPlainText(line)
+
+    def _refresh_view(self, *_args) -> None:
+        self.view.clear()
+        for kind, line in self._lines:
+            if self._line_visible(kind, line):
+                self.view.appendPlainText(line)
+
+    def _line_visible(self, kind: str, line: str = "") -> bool:
+        selected = self.combo_filter.currentData() or "all"
+        if selected == "all":
+            type_matches = True
+        else:
+            type_matches = selected == kind
+        if not type_matches:
+            return False
+        needle = self.edt_filter.text().strip().upper()
+        if not needle:
+            return True
+        return needle in line.upper()

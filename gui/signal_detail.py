@@ -30,6 +30,7 @@ from frame_builder import (
     physical_to_raw,
     raw_to_physical,
 )
+from j1939_id import PgnCategory, parse_can_id
 
 
 SIM_MODES = [
@@ -147,20 +148,38 @@ class SignalDetail(QWidget):
         self.title.setFont(f)
         outer.addWidget(self.title)
 
+        # --- J1939 ID summary ---
+        self.grp_j1939 = QGroupBox("J1939 Identifier")
+        f0 = QFormLayout(self.grp_j1939)
+        self.lbl_j1939_pgn = QLabel("-")
+        self.lbl_j1939_priority = QLabel("-")
+        self.lbl_j1939_sa = QLabel("-")
+        self.lbl_j1939_da_ge = QLabel("-")
+        self.lbl_j1939_type = QLabel("-")
+        self.lbl_j1939_pgn.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_j1939_sa.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_j1939_da_ge.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        f0.addRow("PGN:", self.lbl_j1939_pgn)
+        f0.addRow("Priority:", self.lbl_j1939_priority)
+        f0.addRow("Source Address:", self.lbl_j1939_sa)
+        f0.addRow("DA / GE:", self.lbl_j1939_da_ge)
+        f0.addRow("Type:", self.lbl_j1939_type)
+        outer.addWidget(self.grp_j1939)
+
         # --- Identity ---
-        ident = QGroupBox("Identity")
-        f1 = QFormLayout(ident)
+        self.grp_identity = QGroupBox("Identity")
+        f1 = QFormLayout(self.grp_identity)
         self.edt_name = QLineEdit()
         self.edt_unit = QLineEdit()
         self.edt_name.editingFinished.connect(self._on_text_changed)
         self.edt_unit.editingFinished.connect(self._on_text_changed)
         f1.addRow("Name:", self.edt_name)
         f1.addRow("Unit:", self.edt_unit)
-        outer.addWidget(ident)
+        outer.addWidget(self.grp_identity)
 
         # --- Layout ---
-        lay = QGroupBox("Bit Layout")
-        f2 = QFormLayout(lay)
+        self.grp_layout = QGroupBox("Bit Layout")
+        f2 = QFormLayout(self.grp_layout)
         self.spin_byte = QSpinBox()
         self.spin_byte.setRange(0, 7)
         self.spin_bit = QSpinBox()
@@ -179,11 +198,11 @@ class SignalDetail(QWidget):
         f2.addRow("Bit Position (0-7):", self.spin_bit)
         f2.addRow("Bit Length (1-64):", self.spin_len)
         f2.addRow("Byte Order:", self.cmb_order)
-        outer.addWidget(lay)
+        outer.addWidget(self.grp_layout)
 
         # --- Scale / Offset ---
-        sc = QGroupBox("Scale / Offset")
-        f3 = QFormLayout(sc)
+        self.grp_scale = QGroupBox("Scale / Offset")
+        f3 = QFormLayout(self.grp_scale)
         self.spin_scale = QDoubleSpinBox()
         self.spin_scale.setDecimals(6)
         self.spin_scale.setRange(-1e9, 1e9)
@@ -199,11 +218,11 @@ class SignalDetail(QWidget):
         self.lbl_scale_error.setStyleSheet("color: #ff6b5f;")
         self.lbl_scale_error.setVisible(False)
         f3.addRow("", self.lbl_scale_error)
-        outer.addWidget(sc)
+        outer.addWidget(self.grp_scale)
 
         # --- Range / Value (paired raw+phys) ---
-        rng = QGroupBox("Range and Current Value")
-        f4 = QFormLayout(rng)
+        self.grp_range = QGroupBox("Range and Current Value")
+        f4 = QFormLayout(self.grp_range)
         self.pair_min = _RawPhysPair()
         self.pair_max = _RawPhysPair()
         self.pair_value = _RawPhysPair()
@@ -213,11 +232,11 @@ class SignalDetail(QWidget):
         f4.addRow("Min:", self.pair_min)
         f4.addRow("Max:", self.pair_max)
         f4.addRow("Current:", self.pair_value)
-        outer.addWidget(rng)
+        outer.addWidget(self.grp_range)
 
         # --- Simulation ---
-        sim = QGroupBox("Simulation")
-        f5 = QFormLayout(sim)
+        self.grp_simulation = QGroupBox("Simulation")
+        f5 = QFormLayout(self.grp_simulation)
         self.cmb_mode = QComboBox()
         for k, label in SIM_MODES:
             self.cmb_mode.addItem(label, k)
@@ -249,11 +268,11 @@ class SignalDetail(QWidget):
         self.spin_ramp.setValue(10.0)
         self.spin_ramp.valueChanged.connect(self._on_value_changed)
         f5.addRow(self.lbl_ramp, self.spin_ramp)
-        outer.addWidget(sim)
+        outer.addWidget(self.grp_simulation)
 
         # --- Live preview ---
-        prev = QGroupBox("Frame Preview (whole message)")
-        pl = QVBoxLayout(prev)
+        self.grp_preview = QGroupBox("Frame Preview (whole message)")
+        pl = QVBoxLayout(self.grp_preview)
         self.lbl_preview = QLabel("FF FF FF FF FF FF FF FF")
         self.lbl_preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
         f6 = self.lbl_preview.font()
@@ -261,7 +280,7 @@ class SignalDetail(QWidget):
         f6.setPointSize(f6.pointSize() + 2)
         self.lbl_preview.setFont(f6)
         pl.addWidget(self.lbl_preview)
-        outer.addWidget(prev)
+        outer.addWidget(self.grp_preview)
 
         outer.addStretch(1)
 
@@ -272,12 +291,13 @@ class SignalDetail(QWidget):
     def set_signal(self, message: Optional[Message], signal: Optional[Signal]) -> None:
         self.message = message
         self.signal = signal
+        self._refresh_j1939_summary()
         if signal is None:
             self.title.setText("(no signal selected)")
-            self.setEnabled(False)
+            self._set_signal_controls_enabled(False)
             self._refresh_preview()
             return
-        self.setEnabled(True)
+        self._set_signal_controls_enabled(True)
         self.title.setText(f"Signal: {signal.name}")
         self._loading = True
         try:
@@ -390,6 +410,44 @@ class SignalDetail(QWidget):
             self.spin_scale.setStyleSheet("")
             self.spin_scale.setToolTip("")
 
+    def _set_signal_controls_enabled(self, enabled: bool) -> None:
+        for group in (
+            self.grp_identity,
+            self.grp_layout,
+            self.grp_scale,
+            self.grp_range,
+            self.grp_simulation,
+            self.grp_preview,
+        ):
+            group.setEnabled(enabled)
+
+    def _refresh_j1939_summary(self) -> None:
+        if self.message is None:
+            self.lbl_j1939_pgn.setText("-")
+            self.lbl_j1939_priority.setText("-")
+            self.lbl_j1939_sa.setText("-")
+            self.lbl_j1939_da_ge.setText("-")
+            self.lbl_j1939_type.setText("-")
+            return
+        try:
+            parsed = parse_can_id(self.message.can_id)
+        except ValueError:
+            self.lbl_j1939_pgn.setText("invalid")
+            self.lbl_j1939_priority.setText("-")
+            self.lbl_j1939_sa.setText("-")
+            self.lbl_j1939_da_ge.setText("-")
+            self.lbl_j1939_type.setText("invalid")
+            return
+
+        self.lbl_j1939_pgn.setText(f"{parsed.pgn:05X}")
+        self.lbl_j1939_priority.setText(str(parsed.priority))
+        self.lbl_j1939_sa.setText(f"{parsed.source_address:02X}")
+        if parsed.destination_address is not None:
+            self.lbl_j1939_da_ge.setText(f"DA {parsed.destination_address:02X}")
+        else:
+            self.lbl_j1939_da_ge.setText(f"GE {parsed.group_extension:02X}")
+        self.lbl_j1939_type.setText(_category_label(parsed.category))
+
     def _refresh_preview(self) -> None:
         if self.message is None:
             self.lbl_preview.setText("FF FF FF FF FF FF FF FF")
@@ -399,3 +457,15 @@ class SignalDetail(QWidget):
             self.lbl_preview.setText(format_bytes(data))
         except Exception:
             self.lbl_preview.setText("(error building frame)")
+
+
+def _category_label(category: PgnCategory) -> str:
+    return {
+        PgnCategory.STANDARD: "standard",
+        PgnCategory.REQUEST: "request",
+        PgnCategory.TRANSPORT: "transport",
+        PgnCategory.DIAGNOSTIC: "diagnostic",
+        PgnCategory.PROPRIETARY_A: "proprietary A",
+        PgnCategory.PROPRIETARY_B: "proprietary B",
+        PgnCategory.UNKNOWN: "unknown",
+    }[category]
