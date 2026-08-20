@@ -28,6 +28,14 @@ class SignalDetailValidationTests(unittest.TestCase):
         self.assertTrue(detail.lbl_scale_error.isHidden())
         self.assertEqual(detail.spin_scale.toolTip(), "")
 
+    def test_raw_editor_accepts_unsigned_32_bit_ranges(self):
+        detail = SignalDetail()
+        signal = Signal(bit_length=32, raw_max=4211081215, raw_value=20000)
+
+        detail.set_signal(Message(signals=[signal]), signal)
+
+        self.assertEqual(detail.pair_max.raw(), 4211081215)
+
 
 if __name__ == "__main__":
     unittest.main()

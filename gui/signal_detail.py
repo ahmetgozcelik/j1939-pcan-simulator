@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt5.QtCore import QRegExp, Qt, pyqtSignal
+from PyQt5.QtGui import QFont, QRegExpValidator
 from PyQt5.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -51,18 +51,66 @@ BYTE_ORDERS = [
 ]
 
 
+class _UnsignedIntegerEdit(QLineEdit):
+    """Unsigned integer editor that is not limited by Qt's 32-bit QSpinBox."""
+
+    valueChanged = pyqtSignal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._minimum = 0
+        self._maximum = (1 << 64) - 1
+        self.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.setValidator(QRegExpValidator(QRegExp(r"[0-9]{0,20}"), self))
+        self.textEdited.connect(self._emit_if_valid)
+        self.editingFinished.connect(self._normalize)
+
+    def setRange(self, minimum: int, maximum: int) -> None:
+        self._minimum = int(minimum)
+        self._maximum = int(maximum)
+
+    def setValue(self, value: int) -> None:
+        value = self._clamp(value)
+        if self.text() != str(value):
+            self.setText(str(value))
+
+    def value(self) -> int:
+        text = self.text().strip()
+        if not text:
+            return self._minimum
+        return self._clamp(int(text))
+
+    def _emit_if_valid(self, text: str) -> None:
+        if not text:
+            return
+        self.valueChanged.emit(self.value())
+
+    def _normalize(self) -> None:
+        value = self.value()
+        self.setText(str(value))
+        self.valueChanged.emit(value)
+
+    def _clamp(self, value: int) -> int:
+        value = int(value)
+        if value < self._minimum:
+            return self._minimum
+        if value > self._maximum:
+            return self._maximum
+        return value
+
+
 class _RawPhysPair(QWidget):
     """Birbirini canlı güncelleyen ham + fiziksel alanı çifti."""
 
-    changed = pyqtSignal(int, float)  # raw, physical
+    changed = pyqtSignal(object, float)  # raw, physical
 
     def __init__(self, parent=None):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
-        self.spin_raw = QSpinBox()
-        self.spin_raw.setRange(0, (1 << 31) - 1)
+        self.spin_raw = _UnsignedIntegerEdit()
+        self.spin_raw.setRange(0, (1 << 64) - 1)
         _style_numeric_control(self.spin_raw)
         self.spin_phys = QDoubleSpinBox()
         self.spin_phys.setDecimals(4)
@@ -535,6 +583,7 @@ def _configure_form_layout(layout: QFormLayout) -> None:
 def _style_numeric_control(widget, minimum_width: int = 150) -> None:
     widget.setMinimumHeight(32)
     widget.setMinimumWidth(minimum_width)
+    widget.setProperty("mono", "true")
     font = QFont("JetBrains Mono")
     font.setStyleHint(QFont.Monospace)
     font.setPointSize(max(11, font.pointSize()))

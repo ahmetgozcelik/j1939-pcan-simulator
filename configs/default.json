@@ -14,15 +14,15 @@
           "bit_length": 8,
           "byte_order": "little_endian",
           "scale": 4.0,
-          "offset": 0.0,
+          "offset": -1.0,
           "raw_min": 0,
           "raw_max": 255,
-          "raw_value": 128,
+          "raw_value": 127,
           "sim_mode": "ramp",
           "unit": "kPa",
           "sine_period_s": 10.0,
           "ramp_step": null,
-          "ramp_period_s": 10.0
+          "ramp_period_s": 8.0
         },
         {
           "name": "Engine Oil Pressure",
