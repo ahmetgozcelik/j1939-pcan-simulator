@@ -1,4 +1,4 @@
-"""Mesaj başına bir ``QThread`` çalıştıran simülasyon motoru."""
+"""Simulation engine that runs one ``QThread`` per message."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from PyQt5.QtCore import QObject, QThread, Qt, pyqtSignal
 
 from can_interface import PCanInterface
 from config_manager import Message, Signal
+from dm1_definitions import auto_lamp_steps, build_lamp_status, load_dm1_definitions
 from frame_builder import build_dm1_frame, build_frame, clamp_raw
 
 
@@ -26,7 +27,7 @@ class DecodedSignal:
 
 
 # ---------------------------------------------------------------------------
-# DM1 durumu - genişletilmiş simülasyon modları ile
+# DM1 state with extended simulation modes
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -36,31 +37,27 @@ class DM1State:
     fmi: int = 0
     occurrence: int = 0
 
-    # Simülasyon modları
+    # Simulation modes
     spn_mode: str = "fixed"          # "fixed" | "list" | "random_range"
     lamp_mode: str = "fixed"         # "fixed" | "auto"
 
-    # List modu için SPN listesi ve interval
+    # SPN list mode
     spn_list: List[int] = field(default_factory=list)
-    spn_list_interval_s: float = 2.0  # her kaç saniyede bir değişsin
+    spn_list_interval_s: float = 2.0
     _spn_list_index: int = field(default=0, repr=False)
     _spn_list_last_change: float = field(default=0.0, repr=False)
 
-    # Random range modu için
+    # SPN random range mode
     spn_range_min: int = 0
     spn_range_max: int = 524287
     spn_range_interval_s: float = 2.0
     _spn_range_last_change: float = field(default=0.0, repr=False)
 
-    # Auto lamp için döngülü lamp listesi
+    # Auto lamp cycle
     auto_lamp_interval_s: float = 2.0
     _auto_lamp_index: int = field(default=0, repr=False)
     _auto_lamp_last_change: float = field(default=0.0, repr=False)
 
-
-# ---------------------------------------------------------------------------
-# Per-mesaj QThread
-# ---------------------------------------------------------------------------
 
 class MessageRunner(QThread):
     frame_sent = pyqtSignal(float, str, bytes, list, bool)
@@ -119,7 +116,6 @@ class MessageRunner(QThread):
                     state = DM1State()
                     self.engine.dm1_states[msg.can_id] = state
 
-                # SPN simülasyon modunu işle
                 now = time.monotonic()
                 effective_spn = state.spn
                 effective_lamp = state.lamp_status
@@ -141,18 +137,22 @@ class MessageRunner(QThread):
                         state.spn = effective_spn
                         state._spn_range_last_change = now
 
-                # Lamp auto modu
                 if state.lamp_mode == "auto":
+                    auto_steps = auto_lamp_steps(self.engine.dm1_definitions)
+                    state._auto_lamp_index %= len(auto_steps)
                     elapsed = now - state._auto_lamp_last_change
                     if elapsed >= state.auto_lamp_interval_s:
-                        # Red, Amber, Protect, All arasında döngü
-                        auto_lamps = [0x10, 0x04, 0x01, 0x15]  # red, amber, protect, all
-                        state._auto_lamp_index = (state._auto_lamp_index + 1) % len(auto_lamps)
-                        effective_lamp = auto_lamps[state._auto_lamp_index]
+                        state._auto_lamp_index = (state._auto_lamp_index + 1) % len(auto_steps)
+                        effective_lamp = build_lamp_status(
+                            auto_steps[state._auto_lamp_index],
+                            self.engine.dm1_definitions,
+                        )
                         state._auto_lamp_last_change = now
                     else:
-                        auto_lamps = [0x10, 0x04, 0x01, 0x15]
-                        effective_lamp = auto_lamps[state._auto_lamp_index]
+                        effective_lamp = build_lamp_status(
+                            auto_steps[state._auto_lamp_index],
+                            self.engine.dm1_definitions,
+                        )
 
                 data = build_dm1_frame(effective_lamp, effective_spn, state.fmi, state.occurrence)
                 decoded.append(DecodedSignal(
@@ -220,10 +220,6 @@ class MessageRunner(QThread):
         return sig.raw_value
 
 
-# ---------------------------------------------------------------------------
-# Motor
-# ---------------------------------------------------------------------------
-
 class SimulatorEngine(QObject):
     frame_sent = pyqtSignal(float, str, bytes, list, bool)
     error_logged = pyqtSignal(str)
@@ -235,6 +231,7 @@ class SimulatorEngine(QObject):
         self.lock = threading.RLock()
         self._runners: Dict[str, MessageRunner] = {}
         self.dm1_states: Dict[str, DM1State] = {}
+        self.dm1_definitions = load_dm1_definitions()
         self.pcan.send_failed.connect(self.frame_send_error, Qt.QueuedConnection)
 
     def start_message(self, msg: Message) -> None:

@@ -1,4 +1,4 @@
-"""DM1 (J1939-73) için özel düzenleme paneli - Simülasyon modları ile."""
+"""DM1 (J1939-73) editor panel with simulation modes."""
 
 from __future__ import annotations
 
@@ -22,50 +22,14 @@ from PyQt5.QtWidgets import (
 )
 
 from config_manager import Message
+from dm1_definitions import (
+    get_lamp,
+    lamp_sequence_label,
+    load_dm1_definitions,
+    set_lamp,
+)
 from frame_builder import build_dm1_frame, format_bytes
 from simulator_engine import DM1State, SimulatorEngine
-
-FMI_DESCRIPTIONS = {
-    0: "Above normal / most severe",
-    1: "Below normal / most severe",
-    2: "Erratic, intermittent or incorrect",
-    3: "Voltage above normal",
-    4: "Voltage below normal",
-    5: "Current below normal / open circuit",
-    6: "Current above normal / grounded",
-    7: "Mechanical system not responding",
-    8: "Abnormal frequency / pulse width",
-    9: "Abnormal update rate",
-    10: "Abnormal rate of change",
-    11: "Root cause unknown",
-    12: "Bad intelligent device or component",
-    13: "Out of calibration",
-    14: "Special instructions",
-    15: "Above normal / least severe",
-    16: "Above normal / moderately severe",
-    17: "Below normal / least severe",
-    18: "Below normal / moderately severe",
-    19: "Network error",
-    20: "Data drifted high",
-    21: "Data drifted low",
-    31: "Condition exists",
-}
-
-LAMP_BITS = {"mil": 6, "red": 4, "amber": 2, "protect": 0}
-
-
-def _set_lamp(byte_val: int, name: str, on: bool) -> int:
-    shift = LAMP_BITS[name]
-    mask = 0b11 << shift
-    byte_val &= ~mask & 0xFF
-    if on:
-        byte_val |= (0b01 << shift) & 0xFF
-    return byte_val
-
-
-def _get_lamp(byte_val: int, name: str) -> bool:
-    shift = LAMP_BITS[name]
-    return ((byte_val >> shift) & 0b11) == 0b01
 
 
 class DM1Panel(QWidget):
@@ -73,6 +37,8 @@ class DM1Panel(QWidget):
         super().__init__(parent)
         self.engine = engine
         self.message: Optional[Message] = None
+        self.dm1_definitions = load_dm1_definitions()
+        self.lamp_checkboxes: dict[str, QCheckBox] = {}
         self._loading = False
         self._build_ui()
 
@@ -88,60 +54,55 @@ class DM1Panel(QWidget):
         self.title.setFont(f)
         layout.addWidget(self.title)
 
-        # ── Lamp Status ──────────────────────────────────────────────────
+        # Lamp Status
         lamp_group = QGroupBox("Lamp Status")
         lamp_main = QVBoxLayout(lamp_group)
 
-        # Lamp modu seçimi
         lamp_mode_row = QHBoxLayout()
         lamp_mode_row.addWidget(QLabel("Mode:"))
         self.cmb_lamp_mode = QComboBox()
-        self.cmb_lamp_mode.addItems(["Fixed", "Auto (döngüsel)"])
+        self.cmb_lamp_mode.addItems(["Fixed", "Auto (cycle)"])
         self.cmb_lamp_mode.currentIndexChanged.connect(self._on_lamp_mode_changed)
         lamp_mode_row.addWidget(self.cmb_lamp_mode)
         lamp_mode_row.addStretch()
         lamp_main.addLayout(lamp_mode_row)
 
-        # Fixed: checkbox'lar
         self.lamp_fixed_widget = QWidget()
         lamp_cb_layout = QHBoxLayout(self.lamp_fixed_widget)
         lamp_cb_layout.setContentsMargins(0, 0, 0, 0)
-        self.cb_red = QCheckBox("Red Stop Lamp")
-        self.cb_amber = QCheckBox("Amber Warning")
-        self.cb_protect = QCheckBox("Protect Lamp")
-        self.cb_mil = QCheckBox("MIL (Malfunction)")
-        for cb in (self.cb_red, self.cb_amber, self.cb_protect, self.cb_mil):
+        for lamp in self.dm1_definitions.lamps:
+            cb = QCheckBox(lamp.label)
             cb.toggled.connect(self._on_changed)
             lamp_cb_layout.addWidget(cb)
+            self.lamp_checkboxes[lamp.key] = cb
         lamp_cb_layout.addStretch(1)
         lamp_main.addWidget(self.lamp_fixed_widget)
 
-        # Auto: interval
         self.lamp_auto_widget = QWidget()
         lamp_auto_layout = QHBoxLayout(self.lamp_auto_widget)
         lamp_auto_layout.setContentsMargins(0, 0, 0, 0)
-        lamp_auto_layout.addWidget(QLabel("Değişim süresi (s):"))
+        lamp_auto_layout.addWidget(QLabel("Cycle Period (s):"))
         self.spin_lamp_interval = QDoubleSpinBox()
         self.spin_lamp_interval.setRange(0.1, 60.0)
         self.spin_lamp_interval.setValue(2.0)
         self.spin_lamp_interval.setSingleStep(0.5)
         self.spin_lamp_interval.valueChanged.connect(self._on_changed)
         lamp_auto_layout.addWidget(self.spin_lamp_interval)
-        lamp_auto_layout.addWidget(QLabel("(Red → Amber → Protect → Hepsi döngüsü)"))
+        lamp_auto_layout.addWidget(QLabel(lamp_sequence_label(self.dm1_definitions)))
         lamp_auto_layout.addStretch()
         self.lamp_auto_widget.setVisible(False)
         lamp_main.addWidget(self.lamp_auto_widget)
 
         layout.addWidget(lamp_group)
 
-        # ── SPN Simülasyon Modu ──────────────────────────────────────────
-        spn_group = QGroupBox("SPN Simülasyon")
+        # SPN Simulation Mode
+        spn_group = QGroupBox("SPN Simulation")
         spn_main = QVBoxLayout(spn_group)
 
         mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel("Mod:"))
+        mode_row.addWidget(QLabel("Mode:"))
         self.cmb_spn_mode = QComboBox()
-        self.cmb_spn_mode.addItems(["Fixed", "Liste (sıralı)", "Random Aralık"])
+        self.cmb_spn_mode.addItems(["Fixed", "List (sequential)", "Random Range"])
         self.cmb_spn_mode.currentIndexChanged.connect(self._on_spn_mode_changed)
         mode_row.addWidget(self.cmb_spn_mode)
         mode_row.addStretch()
@@ -150,7 +111,7 @@ class DM1Panel(QWidget):
         # Stacked: Fixed / List / Random
         self.spn_stack = QStackedWidget()
 
-        # -- Fixed sayfası --
+        # Fixed page
         fixed_page = QWidget()
         fixed_form = QFormLayout(fixed_page)
         self.spin_spn = QSpinBox()
@@ -159,7 +120,7 @@ class DM1Panel(QWidget):
         fixed_form.addRow("SPN (0..524287):", self.spin_spn)
         self.spn_stack.addWidget(fixed_page)
 
-        # -- Liste sayfası --
+        # List page
         list_page = QWidget()
         list_layout = QVBoxLayout(list_page)
         list_layout.setContentsMargins(0, 0, 0, 0)
@@ -168,9 +129,9 @@ class DM1Panel(QWidget):
         self.spin_list_add = QSpinBox()
         self.spin_list_add.setRange(0, (1 << 19) - 1)
         self.spin_list_add.setFixedWidth(100)
-        btn_list_add = QPushButton("Ekle")
+        btn_list_add = QPushButton("Add")
         btn_list_add.clicked.connect(self._add_spn_to_list)
-        btn_list_del = QPushButton("Sil")
+        btn_list_del = QPushButton("Delete")
         btn_list_del.clicked.connect(self._del_spn_from_list)
         list_ctrl_row.addWidget(QLabel("SPN:"))
         list_ctrl_row.addWidget(self.spin_list_add)
@@ -184,7 +145,7 @@ class DM1Panel(QWidget):
         list_layout.addWidget(self.spn_list_widget)
 
         interval_row = QHBoxLayout()
-        interval_row.addWidget(QLabel("Değişim süresi (s):"))
+        interval_row.addWidget(QLabel("Cycle Period (s):"))
         self.spin_list_interval = QDoubleSpinBox()
         self.spin_list_interval.setRange(0.1, 60.0)
         self.spin_list_interval.setValue(2.0)
@@ -195,7 +156,7 @@ class DM1Panel(QWidget):
         list_layout.addLayout(interval_row)
         self.spn_stack.addWidget(list_page)
 
-        # -- Random aralık sayfası --
+        # Random range page
         rand_page = QWidget()
         rand_form = QFormLayout(rand_page)
         self.spin_rand_min = QSpinBox()
@@ -212,19 +173,19 @@ class DM1Panel(QWidget):
         self.spin_rand_interval.valueChanged.connect(self._on_changed)
         rand_form.addRow("Min SPN:", self.spin_rand_min)
         rand_form.addRow("Max SPN:", self.spin_rand_max)
-        rand_form.addRow("Değişim süresi (s):", self.spin_rand_interval)
+        rand_form.addRow("Cycle Period (s):", self.spin_rand_interval)
         self.spn_stack.addWidget(rand_page)
 
         spn_main.addWidget(self.spn_stack)
         layout.addWidget(spn_group)
 
-        # ── FMI / OC ────────────────────────────────────────────────────
-        dtc_group = QGroupBox("DTC Detay")
+        # FMI / OC
+        dtc_group = QGroupBox("DTC Detail")
         form = QFormLayout(dtc_group)
 
         self.cmb_fmi = QComboBox()
         for fmi in range(0, 32):
-            desc = FMI_DESCRIPTIONS.get(fmi, "Reserved")
+            desc = self.dm1_definitions.fmi_descriptions.get(fmi, "Reserved")
             self.cmb_fmi.addItem(f"{fmi} - {desc}", fmi)
         self.cmb_fmi.currentIndexChanged.connect(self._on_changed)
         form.addRow("FMI:", self.cmb_fmi)
@@ -235,7 +196,7 @@ class DM1Panel(QWidget):
         form.addRow("Occurrence Count (0..126):", self.spin_oc)
         layout.addWidget(dtc_group)
 
-        # ── Preview / Send ───────────────────────────────────────────────
+        # Preview / Send
         prev = QGroupBox("Frame Preview (8 bytes)")
         prev_l = QVBoxLayout(prev)
         self.lbl_preview = QLabel("FF FF FF FF FF FF FF FF")
@@ -271,32 +232,25 @@ class DM1Panel(QWidget):
             self.title.setText(f"{msg.can_id}  {msg.name}")
             state = self.engine.get_dm1_state(msg.can_id)
 
-            # Lamp
             lamp_mode_idx = 1 if state.lamp_mode == "auto" else 0
             self.cmb_lamp_mode.setCurrentIndex(lamp_mode_idx)
-            self.cb_red.setChecked(_get_lamp(state.lamp_status, "red"))
-            self.cb_amber.setChecked(_get_lamp(state.lamp_status, "amber"))
-            self.cb_protect.setChecked(_get_lamp(state.lamp_status, "protect"))
-            self.cb_mil.setChecked(_get_lamp(state.lamp_status, "mil"))
+            for key, checkbox in self.lamp_checkboxes.items():
+                checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
             self.spin_lamp_interval.setValue(state.auto_lamp_interval_s)
 
-            # SPN modu
             mode_map = {"fixed": 0, "list": 1, "random_range": 2}
             self.cmb_spn_mode.setCurrentIndex(mode_map.get(state.spn_mode, 0))
             self.spin_spn.setValue(state.spn)
 
-            # Liste
             self.spn_list_widget.clear()
             for v in state.spn_list:
                 self.spn_list_widget.addItem(str(v))
             self.spin_list_interval.setValue(state.spn_list_interval_s)
 
-            # Random
             self.spin_rand_min.setValue(state.spn_range_min)
             self.spin_rand_max.setValue(state.spn_range_max)
             self.spin_rand_interval.setValue(state.spn_range_interval_s)
 
-            # FMI / OC
             self.cmb_fmi.setCurrentIndex(self.cmb_fmi.findData(state.fmi))
             self.spin_oc.setValue(state.occurrence)
         finally:
@@ -328,16 +282,12 @@ class DM1Panel(QWidget):
         self._on_changed()
 
     def _current_state(self) -> DM1State:
-        # Lamp
         lamp = 0xFF
         lamp_mode = "auto" if self.cmb_lamp_mode.currentIndex() == 1 else "fixed"
         if lamp_mode == "fixed":
-            lamp = _set_lamp(lamp, "red", self.cb_red.isChecked())
-            lamp = _set_lamp(lamp, "amber", self.cb_amber.isChecked())
-            lamp = _set_lamp(lamp, "protect", self.cb_protect.isChecked())
-            lamp = _set_lamp(lamp, "mil", self.cb_mil.isChecked())
+            for key, checkbox in self.lamp_checkboxes.items():
+                lamp = set_lamp(lamp, key, checkbox.isChecked(), self.dm1_definitions)
 
-        # SPN modu
         mode_idx = self.cmb_spn_mode.currentIndex()
         spn_mode = ["fixed", "list", "random_range"][mode_idx]
 
