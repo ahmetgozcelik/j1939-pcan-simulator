@@ -14,6 +14,7 @@ from gui.message_panel import (
     COL_ID,
     COL_NAME,
     COL_PGN,
+    COL_PGN_DEC,
     COL_PRIORITY,
     COL_SA,
     COL_TYPE,
@@ -35,6 +36,7 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         model = panel.model
 
         self.assertEqual(model.data(model.index(0, COL_PGN), Qt.DisplayRole), "0FECA")
+        self.assertEqual(model.data(model.index(0, COL_PGN_DEC), Qt.DisplayRole), 65226)
         self.assertEqual(model.data(model.index(0, COL_PRIORITY), Qt.DisplayRole), 6)
         self.assertEqual(model.data(model.index(0, COL_SA), Qt.DisplayRole), "00")
         self.assertEqual(model.data(model.index(0, COL_DA_GE), Qt.DisplayRole), "GE CA")
@@ -50,12 +52,23 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         self.assertEqual(model.data(model.index(0, COL_DA_GE), Qt.DisplayRole), "DA 23")
         self.assertEqual(model.data(model.index(0, COL_TYPE), Qt.DisplayRole), "request")
 
-    def test_message_table_allows_editing_pgn_and_rebuilds_can_id(self):
+    def test_message_table_allows_editing_hex_pgn_and_rebuilds_can_id(self):
         ws = Workspace(messages=[Message(can_id="18F00480")])
         panel = MessagePanel()
         panel.set_workspace(ws)
 
         self.assertTrue(panel.model.setData(panel.model.index(0, COL_PGN), "0FEEF"))
+
+        self.assertEqual(ws.messages[0].can_id, "18FEEF80")
+        self.assertEqual(panel.model.data(panel.model.index(0, COL_PGN), Qt.DisplayRole), "0FEEF")
+        self.assertEqual(panel.model.data(panel.model.index(0, COL_PGN_DEC), Qt.DisplayRole), 65263)
+
+    def test_message_table_allows_editing_decimal_pgn_and_rebuilds_can_id(self):
+        ws = Workspace(messages=[Message(can_id="18F00480")])
+        panel = MessagePanel()
+        panel.set_workspace(ws)
+
+        self.assertTrue(panel.model.setData(panel.model.index(0, COL_PGN_DEC), "65263"))
 
         self.assertEqual(ws.messages[0].can_id, "18FEEF80")
         self.assertEqual(panel.model.data(panel.model.index(0, COL_PGN), Qt.DisplayRole), "0FEEF")
@@ -100,6 +113,7 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         detail.set_signal(Message(can_id="18FECA00"), None)
 
         self.assertEqual(detail.lbl_j1939_pgn.text(), "0FECA")
+        self.assertEqual(detail.lbl_j1939_pgn_dec.text(), "65226")
         self.assertEqual(detail.lbl_j1939_type.text(), "diagnostic")
         self.assertTrue(detail.grp_identity.isEnabled() is False)
         self.assertTrue(detail.grp_j1939.isEnabled())

@@ -61,15 +61,16 @@ def _safe_slot(fn):
 COL_ACTIVE = 0
 COL_ID = 1
 COL_PGN = 2
-COL_PRIORITY = 3
-COL_SA = 4
-COL_DA_GE = 5
-COL_TYPE = 6
-COL_NAME = 7
-COL_CYCLE = 8
-COLS = ["Active", "CAN ID", "PGN", "Prio", "SA", "DA/GE", "Type", "Name", "Cycle ms"]
+COL_PGN_DEC = 3
+COL_PRIORITY = 4
+COL_SA = 5
+COL_DA_GE = 6
+COL_TYPE = 7
+COL_NAME = 8
+COL_CYCLE = 9
+COLS = ["Active", "CAN ID", "PGN Hex", "PGN Dec", "Prio", "SA", "DA/GE", "Type", "Name", "Cycle ms"]
 DEFAULT_NEW_MESSAGE_PGN = 0x00FF00
-MONOSPACE_COLS = {COL_ID, COL_PGN, COL_SA, COL_DA_GE}
+MONOSPACE_COLS = {COL_ID, COL_PGN, COL_PGN_DEC, COL_SA, COL_DA_GE}
 
 
 class MessageTableModel(QAbstractTableModel):
@@ -110,6 +111,7 @@ class MessageTableModel(QAbstractTableModel):
         if col in (
             COL_ID,
             COL_PGN,
+            COL_PGN_DEC,
             COL_PRIORITY,
             COL_SA,
             COL_DA_GE,
@@ -136,6 +138,8 @@ class MessageTableModel(QAbstractTableModel):
                 return msg.can_id
             if col == COL_PGN:
                 return f"{parsed.pgn:05X}" if parsed else ""
+            if col == COL_PGN_DEC:
+                return parsed.pgn if parsed else ""
             if col == COL_PRIORITY:
                 return parsed.priority if parsed else ""
             if col == COL_SA:
@@ -155,7 +159,7 @@ class MessageTableModel(QAbstractTableModel):
         if role == Qt.ForegroundRole:
             if parsed is None:
                 return theme_color("status-error")
-            if col in (COL_ID, COL_PGN, COL_TYPE):
+            if col in (COL_ID, COL_PGN, COL_PGN_DEC, COL_TYPE):
                 return _category_color(parsed.category)
         if role == Qt.FontRole and col in MONOSPACE_COLS:
             font = QFont("JetBrains Mono")
@@ -165,6 +169,7 @@ class MessageTableModel(QAbstractTableModel):
             COL_ACTIVE,
             COL_ID,
             COL_PGN,
+            COL_PGN_DEC,
             COL_PRIORITY,
             COL_SA,
             COL_DA_GE,
@@ -177,7 +182,7 @@ class MessageTableModel(QAbstractTableModel):
                 return "Invalid 29-bit J1939 CAN ID"
             if col == COL_ACTIVE:
                 return "Click to toggle message transmission state"
-            if col in (COL_ID, COL_PGN, COL_PRIORITY, COL_SA, COL_DA_GE):
+            if col in (COL_ID, COL_PGN, COL_PGN_DEC, COL_PRIORITY, COL_SA, COL_DA_GE):
                 return "Double-click to edit J1939 identifier fields"
             if col == COL_TYPE:
                 return _category_tooltip(parsed.category)
@@ -203,7 +208,9 @@ class MessageTableModel(QAbstractTableModel):
                     int(cleaned, 16)  # validate
                     msg.can_id = cleaned
                 elif col == COL_PGN:
-                    msg.can_id = _updated_can_id(msg, pgn=_parse_number(value, 0, 0x3FFFF, base=16))
+                    msg.can_id = _updated_can_id(msg, pgn=_parse_pgn_value(value, default_base=16))
+                elif col == COL_PGN_DEC:
+                    msg.can_id = _updated_can_id(msg, pgn=_parse_pgn_value(value, default_base=10))
                 elif col == COL_PRIORITY:
                     msg.can_id = _updated_can_id(msg, priority=_parse_number(value, 0, 7, base=10))
                 elif col == COL_SA:
@@ -321,7 +328,8 @@ class MessagePanel(QWidget):
         for col, width in {
             COL_ACTIVE: 64,
             COL_ID: 112,
-            COL_PGN: 78,
+            COL_PGN: 88,
+            COL_PGN_DEC: 88,
             COL_PRIORITY: 56,
             COL_SA: 54,
             COL_DA_GE: 82,
@@ -548,6 +556,22 @@ def _parse_number(value, low: int, high: int, *, base: int | None = None) -> int
     number = int(text, number_base)
     if not low <= number <= high:
         raise ValueError(f"value must be in {low}..{high}")
+    return number
+
+
+def _parse_pgn_value(value, *, default_base: int) -> int:
+    text = str(value).strip().upper()
+    text = text.replace("PGN", "").replace(":", "").strip()
+    if not text:
+        raise ValueError("empty PGN")
+    if text.startswith("0X"):
+        number = int(text[2:], 16)
+    elif any(ch in "ABCDEF" for ch in text):
+        number = int(text, 16)
+    else:
+        number = int(text, default_base)
+    if not 0 <= number <= 0x3FFFF:
+        raise ValueError("PGN must be in 0..262143")
     return number
 
 

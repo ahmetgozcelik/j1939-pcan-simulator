@@ -220,19 +220,22 @@ class SignalDetail(QWidget):
         f0 = QFormLayout(self.grp_j1939)
         _configure_form_layout(f0)
         self.lbl_j1939_pgn = QLabel("-")
+        self.lbl_j1939_pgn_dec = QLabel("-")
         self.lbl_j1939_priority = QLabel("-")
         self.lbl_j1939_sa = QLabel("-")
         self.lbl_j1939_da_ge = QLabel("-")
         self.lbl_j1939_type = QLabel("-")
         for label in (
             self.lbl_j1939_pgn,
+            self.lbl_j1939_pgn_dec,
             self.lbl_j1939_priority,
             self.lbl_j1939_sa,
             self.lbl_j1939_da_ge,
             self.lbl_j1939_type,
         ):
             _style_value_label(label)
-        f0.addRow("PGN:", self.lbl_j1939_pgn)
+        f0.addRow("PGN Hex:", self.lbl_j1939_pgn)
+        f0.addRow("PGN Dec:", self.lbl_j1939_pgn_dec)
         f0.addRow("Priority:", self.lbl_j1939_priority)
         f0.addRow("Source Address:", self.lbl_j1939_sa)
         f0.addRow("DA / GE:", self.lbl_j1939_da_ge)
@@ -524,6 +527,7 @@ class SignalDetail(QWidget):
     def _refresh_j1939_summary(self) -> None:
         if self.message is None:
             self.lbl_j1939_pgn.setText("-")
+            self.lbl_j1939_pgn_dec.setText("-")
             self.lbl_j1939_priority.setText("-")
             self.lbl_j1939_sa.setText("-")
             self.lbl_j1939_da_ge.setText("-")
@@ -533,6 +537,7 @@ class SignalDetail(QWidget):
             parsed = parse_can_id(self.message.can_id)
         except ValueError:
             self.lbl_j1939_pgn.setText("invalid")
+            self.lbl_j1939_pgn_dec.setText("-")
             self.lbl_j1939_priority.setText("-")
             self.lbl_j1939_sa.setText("-")
             self.lbl_j1939_da_ge.setText("-")
@@ -540,6 +545,7 @@ class SignalDetail(QWidget):
             return
 
         self.lbl_j1939_pgn.setText(f"{parsed.pgn:05X}")
+        self.lbl_j1939_pgn_dec.setText(str(parsed.pgn))
         self.lbl_j1939_priority.setText(str(parsed.priority))
         self.lbl_j1939_sa.setText(f"{parsed.source_address:02X}")
         if parsed.destination_address is not None:
