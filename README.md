@@ -35,11 +35,18 @@ python main.py
 ```
 
 ### EXE Oluşturma
+Aşağıdaki adımları izleyin:
+
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "J1939_Simulator" main.py
-xcopy configs dist\configs /E /I
+pyinstaller J1939_Simulator.spec
 ```
+
+EXE dosyası `dist/J1939_Simulator.exe` olarak oluşur.  
+`configs` klasörü otomatik olarak EXE içine gömülür, ayrıca kopyalamanıza gerek yoktur.
+
+> ⚠️ PEAK PCAN Basic sürücüsünün kurulu olması gerekir: [peak-system.com](https://www.peak-system.com/Downloads.76.0.html)  
+> ⚠️ Windows Defender uyarısı verirse "More info → Run anyway" seçin.
 
 ---
 
@@ -73,11 +80,18 @@ python main.py
 ```
 
 ### Build EXE
+Follow these steps:
+
 ```bash
 pip install pyinstaller
-pyinstaller --onefile --windowed --name "J1939_Simulator" main.py
-xcopy configs dist\configs /E /I
+pyinstaller J1939_Simulator.spec
 ```
+
+EXE will be created at `dist/J1939_Simulator.exe`.  
+The `configs` folder is automatically bundled into the EXE.
+
+> ⚠️ PEAK PCAN Basic driver must be installed: [peak-system.com](https://www.peak-system.com/Downloads.76.0.html)  
+> ⚠️ If Windows Defender warns you, click "More info → Run anyway".
 
 ---
 
