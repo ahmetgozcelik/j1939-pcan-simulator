@@ -11,9 +11,11 @@ from typing import List, Optional
 from PyQt5.QtCore import (
     QAbstractTableModel,
     QModelIndex,
+    QTimer,
     Qt,
     pyqtSignal,
 )
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -26,6 +28,8 @@ from PyQt5.QtWidgets import (
 
 from config_manager import Message, Signal
 from frame_builder import physical_to_raw, raw_to_physical
+from gui.table_delegates import HmiTableDelegate
+from gui.theme import theme_color
 from validators import signal_bit_positions
 
 
@@ -41,6 +45,7 @@ class SignalTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._message: Optional[Message] = None
+        self._flashed_rows: set[int] = set()
 
     def set_message(self, msg: Optional[Message]) -> None:
         self.beginResetModel()
@@ -91,6 +96,14 @@ class SignalTableModel(QAbstractTableModel):
                 return sig.sim_mode
         if role == Qt.TextAlignmentRole and col in (COL_RAW, COL_PHYS):
             return int(Qt.AlignRight | Qt.AlignVCenter)
+        if role == Qt.FontRole and col in (COL_RAW, COL_PHYS):
+            font = QFont("JetBrains Mono")
+            font.setStyleHint(QFont.Monospace)
+            font.setBold(True)
+            return font
+        if role == Qt.BackgroundRole and col in (COL_RAW, COL_PHYS):
+            if index.row() in self._flashed_rows:
+                return theme_color("accent-cyan", 42)
         return None
 
     # Sinyal: gerçek bir kullanıcı düzenlemesi tamamlandığında.
@@ -117,6 +130,24 @@ class SignalTableModel(QAbstractTableModel):
         self.user_edited.emit()
         return True
 
+    def flash_value_cells(self) -> None:
+        if self._message is None or not self._message.signals:
+            return
+        self._flashed_rows = set(range(len(self._message.signals)))
+        top = self.index(0, COL_RAW)
+        bottom = self.index(len(self._message.signals) - 1, COL_PHYS)
+        self.dataChanged.emit(top, bottom, [Qt.BackgroundRole])
+        QTimer.singleShot(150, self.clear_value_flash)
+
+    def clear_value_flash(self) -> None:
+        if self._message is None or not self._flashed_rows:
+            return
+        rows = sorted(self._flashed_rows)
+        self._flashed_rows.clear()
+        top = self.index(rows[0], COL_RAW)
+        bottom = self.index(rows[-1], COL_PHYS)
+        self.dataChanged.emit(top, bottom, [Qt.BackgroundRole])
+
 
 class SignalPanel(QWidget):
 
@@ -129,8 +160,8 @@ class SignalPanel(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
         self.model = SignalTableModel()
         self.table = QTableView()
@@ -138,8 +169,12 @@ class SignalPanel(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setAlternatingRowColors(True)
+        self.table.setMouseTracking(True)
+        self.table.setItemDelegate(HmiTableDelegate(self.table))
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(36)
         hh = self.table.horizontalHeader()
+        hh.setMinimumSectionSize(42)
         hh.setStretchLastSection(False)
         hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
         hh.setSectionResizeMode(COL_RAW, QHeaderView.ResizeToContents)
@@ -183,6 +218,9 @@ class SignalPanel(QWidget):
         top = self.model.index(0, 0)
         bot = self.model.index(max(0, len(msg.signals) - 1), len(COLS) - 1)
         self.model.dataChanged.emit(top, bot, [Qt.DisplayRole])
+
+    def flash_value_cells(self) -> None:
+        self.model.flash_value_cells()
 
     # ------------------------------------------------------------------
     # Slots

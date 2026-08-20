@@ -31,6 +31,8 @@ from PyQt5.QtWidgets import (
 )
 
 from config_manager import Message, Workspace, clone_message
+from gui.table_delegates import MessageTableDelegate, ROLE_ACTIVE_STATE, ROLE_TYPE_KIND
+from gui.theme import repolish, theme_color
 from j1939_id import PgnCategory, build_can_id, format_can_id, parse_can_id
 
 
@@ -104,7 +106,7 @@ class MessageTableModel(QAbstractTableModel):
         base = Qt.ItemIsEnabled | Qt.ItemIsSelectable
         col = index.column()
         if col == COL_ACTIVE:
-            return base | Qt.ItemIsUserCheckable
+            return base
         if col in (COL_ID, COL_NAME, COL_CYCLE):
             return base | Qt.ItemIsEditable
         return base
@@ -115,9 +117,13 @@ class MessageTableModel(QAbstractTableModel):
         msg = self.messages()[index.row()]
         col = index.column()
         parsed = _parse_message_id(msg)
-        if role == Qt.CheckStateRole and col == COL_ACTIVE:
-            return Qt.Checked if msg.active else Qt.Unchecked
+        if role == ROLE_ACTIVE_STATE and col == COL_ACTIVE:
+            return msg.active
+        if role == ROLE_TYPE_KIND and col == COL_TYPE:
+            return _category_label(parsed.category) if parsed else "invalid"
         if role in (Qt.DisplayRole, Qt.EditRole):
+            if col == COL_ACTIVE:
+                return ""
             if col == COL_ID:
                 return msg.can_id
             if col == COL_PGN:
@@ -140,16 +146,29 @@ class MessageTableModel(QAbstractTableModel):
                 return int(msg.cycle_ms)
         if role == Qt.ForegroundRole:
             if parsed is None:
-                return QColor(255, 107, 95)
+                return theme_color("status-error")
             if col in (COL_ID, COL_PGN, COL_TYPE):
                 return _category_color(parsed.category)
         if role == Qt.FontRole and col in MONOSPACE_COLS:
-            font = QFont("Consolas")
+            font = QFont("JetBrains Mono")
             font.setStyleHint(QFont.Monospace)
             return font
+        if role == Qt.TextAlignmentRole and col in (
+            COL_ACTIVE,
+            COL_ID,
+            COL_PGN,
+            COL_PRIORITY,
+            COL_SA,
+            COL_DA_GE,
+            COL_TYPE,
+            COL_CYCLE,
+        ):
+            return int(Qt.AlignCenter)
         if role == Qt.ToolTipRole:
             if parsed is None:
                 return "Invalid 29-bit J1939 CAN ID"
+            if col == COL_ACTIVE:
+                return "Click to toggle message transmission state"
             if col == COL_TYPE:
                 return _category_tooltip(parsed.category)
             if col == COL_DA_GE:
@@ -186,6 +205,18 @@ class MessageTableModel(QAbstractTableModel):
             return True
         return False
 
+    def set_active(self, row: int, active: bool) -> Optional[Message]:
+        msgs = self.messages()
+        if not (0 <= row < len(msgs)):
+            return None
+        msg = msgs[row]
+        if msg.active == active:
+            return msg
+        msg.active = active
+        index = self.index(row, COL_ACTIVE)
+        self.dataChanged.emit(index, index, [Qt.DisplayRole, ROLE_ACTIVE_STATE])
+        return msg
+
 
 class MessagePanel(QWidget):
 
@@ -202,32 +233,25 @@ class MessagePanel(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(4)
-
-        # PCAN status row
-        '''
-        status_row = QHBoxLayout()
-        self.led = QLabel()
-        self.led.setObjectName("statusLed")
-        self.led.setFixedSize(14, 14)
-        self._set_led(False)
-        self.lbl_status = QLabel("PCAN: disconnected")
-        self.btn_reconnect = QPushButton("Reconnect")
-        self.btn_reconnect.clicked.connect(self.request_reconnect.emit)
-        status_row.addWidget(self.led)
-        status_row.addWidget(self.lbl_status, 1)
-        status_row.addWidget(self.btn_reconnect)
-        layout.addLayout(status_row)
-        '''
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(8)
 
         # PCAN status row
         status_row = QHBoxLayout()
+        status_row.setSpacing(8)
+        self.status_badge = QWidget()
+        self.status_badge.setObjectName("ConnectionBadge")
+        badge_layout = QHBoxLayout(self.status_badge)
+        badge_layout.setContentsMargins(10, 5, 10, 5)
+        badge_layout.setSpacing(7)
         self.led = QLabel()
-        self.led.setObjectName("statusLed")
-        self.led.setFixedSize(14, 14)
+        self.led.setObjectName("ConnectionLed")
+        self.led.setFixedSize(12, 12)
         self._set_led(False)
-        self.lbl_status = QLabel("PCAN: disconnected")
+        self.lbl_status = QLabel("CAN: DISCONNECTED")
+        self.lbl_status.setObjectName("ConnectionStatusLabel")
+        badge_layout.addWidget(self.led)
+        badge_layout.addWidget(self.lbl_status)
 
         # ComboBox'lar
         self.combo_backend = QComboBox()
@@ -244,14 +268,15 @@ class MessagePanel(QWidget):
         self.combo_bitrate.setCurrentIndex(1)  # 250 kbps default
 
         self.btn_reconnect = QPushButton("Reconnect")
+        self.btn_reconnect.setObjectName("ReconnectButton")
         self.btn_reconnect.clicked.connect(self.request_reconnect.emit)
         
-        status_row.addWidget(self.led)
-        status_row.addWidget(self.lbl_status, 1)
+        status_row.addWidget(self.status_badge)
         status_row.addWidget(self.combo_backend)
         status_row.addWidget(self.combo_channel)
         status_row.addWidget(self.combo_bitrate)
         status_row.addWidget(self.btn_reconnect)
+        status_row.addStretch(1)
         layout.addLayout(status_row)
 
         # Table
@@ -261,8 +286,13 @@ class MessagePanel(QWidget):
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setAlternatingRowColors(True)
+        self.table.setMouseTracking(True)
+        self.table.setItemDelegate(MessageTableDelegate(COL_ACTIVE, COL_TYPE, self.table))
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(36)
         hh = self.table.horizontalHeader()
+        hh.setMinimumSectionSize(34)
+        hh.setDefaultSectionSize(88)
         hh.setSectionResizeMode(COL_ACTIVE, QHeaderView.ResizeToContents)
         for col in (COL_ACTIVE, COL_ID, COL_PGN, COL_PRIORITY, COL_SA, COL_DA_GE, COL_TYPE, COL_CYCLE):
             hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
@@ -297,6 +327,7 @@ class MessagePanel(QWidget):
 
         # Selection / data change wiring
         self.table.selectionModel().selectionChanged.connect(self._emit_selection)
+        self.table.clicked.connect(self._on_table_clicked)
         self.model.dataChanged.connect(self._on_data_changed)
 
     # ------------------------------------------------------------------
@@ -321,22 +352,25 @@ class MessagePanel(QWidget):
     def update_connection_status(self, connected: bool, info: str) -> None:
         self._set_led(connected)
         if connected:
-            text = f"CAN: connected ({info})"
+            text = "CAN: CONNECTED"
+            tooltip = f"Connected: {info}" if info else "Connected"
         else:
-            text = "CAN: disconnected"
-            if info:
-                text += f" - {info}"
+            text = "CAN: DISCONNECTED"
+            tooltip = f"Disconnected: {info}" if info else "Disconnected"
         self.lbl_status.setText(text)
+        self.lbl_status.setToolTip(tooltip)
+        self.status_badge.setToolTip(tooltip)
 
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
 
     def _set_led(self, on: bool) -> None:
-        color = "#2ecc71" if on else "#e74c3c"
-        self.led.setStyleSheet(
-            f"background-color: {color}; border-radius: 7px;"
-        )
+        state = "ok" if on else "error"
+        self.led.setProperty("state", state)
+        self.status_badge.setProperty("state", state)
+        repolish(self.led)
+        repolish(self.status_badge)
 
     @_safe_slot
     def _emit_selection(self, *_args) -> None:
@@ -351,6 +385,14 @@ class MessagePanel(QWidget):
             msgs = self.model.messages()
             if 0 <= row < len(msgs):
                 self.request_active_changed.emit(msgs[row])
+
+    @_safe_slot
+    def _on_table_clicked(self, index: QModelIndex) -> None:
+        if not index.isValid() or index.column() != COL_ACTIVE:
+            return
+        msg = self.model.set_active(index.row(), not bool(index.data(ROLE_ACTIVE_STATE)))
+        if msg is not None:
+            self.request_active_changed.emit(msg)
 
     @_safe_slot
     def _add_message(self, checked = False) -> None:
@@ -487,11 +529,11 @@ def _category_tooltip(category: PgnCategory) -> str:
 
 def _category_color(category: PgnCategory) -> QColor:
     return {
-        PgnCategory.STANDARD: QColor(220, 226, 232),
-        PgnCategory.REQUEST: QColor(133, 193, 255),
-        PgnCategory.TRANSPORT: QColor(147, 217, 170),
-        PgnCategory.DIAGNOSTIC: QColor(255, 200, 100),
-        PgnCategory.PROPRIETARY_A: QColor(220, 180, 255),
-        PgnCategory.PROPRIETARY_B: QColor(220, 180, 255),
-        PgnCategory.UNKNOWN: QColor(255, 107, 95),
+        PgnCategory.STANDARD: theme_color("text-primary"),
+        PgnCategory.REQUEST: theme_color("accent-cyan"),
+        PgnCategory.TRANSPORT: theme_color("status-ok"),
+        PgnCategory.DIAGNOSTIC: theme_color("status-warn"),
+        PgnCategory.PROPRIETARY_A: theme_color("text-secondary"),
+        PgnCategory.PROPRIETARY_B: theme_color("text-secondary"),
+        PgnCategory.UNKNOWN: theme_color("status-error"),
     }[category]

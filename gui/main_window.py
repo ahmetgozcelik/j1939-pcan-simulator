@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
     def __init__(self, reporter=None):
         super().__init__()
         self.setWindowTitle("J1939 PCAN Simulator")
-        self.resize(1400, 900)
+        self.resize(1500, 900)
 
         self._reporter = reporter
         self.workspace: Workspace = Workspace()
@@ -142,6 +142,9 @@ class MainWindow(QMainWindow):
         self.center_stack = QStackedWidget()
         self.center_stack.addWidget(self.signal_panel)  # 0
         self.center_stack.addWidget(self.dm1_panel)     # 1
+        self.message_panel.setMinimumWidth(560)
+        self.center_stack.setMinimumWidth(360)
+        self.signal_detail.setMinimumWidth(500)
 
         self.splitter = QSplitter(Qt.Horizontal)
         self.splitter.addWidget(self.message_panel)
@@ -150,7 +153,7 @@ class MainWindow(QMainWindow):
         self.splitter.setStretchFactor(0, 2)
         self.splitter.setStretchFactor(1, 3)
         self.splitter.setStretchFactor(2, 3)
-        self.splitter.setSizes([350, 500, 500])
+        self.splitter.setSizes([620, 430, 560])
 
         self.setCentralWidget(self.splitter)
 
@@ -164,7 +167,8 @@ class MainWindow(QMainWindow):
     def _build_toolbar(self) -> None:
         tb = QToolBar("Main")
         tb.setObjectName("MainToolBar")
-        tb.setIconSize(QSize(16, 16))
+        tb.setIconSize(QSize(18, 18))
+        tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         tb.setMovable(False)
         self.addToolBar(tb)
 
@@ -300,7 +304,7 @@ class MainWindow(QMainWindow):
         self._refresh_validation_status()
         if backup_path:
             self.statusBar().showMessage(f"Recovery backup saved: {backup_path}")
-        self.setWindowTitle("J1939 PCAN Simulator - (untitled)")
+        self._set_window_title("untitled")
 
     @safe_action
     def _action_open(self, checked=False) -> None:
@@ -341,7 +345,7 @@ class MainWindow(QMainWindow):
         ws_dict = workspace_to_dict(self.workspace)
         self.io_worker.request_save.emit(str(Path(path)), ws_dict)
         self.current_path = str(Path(path).resolve())
-        self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path} (saving...)")
+        self._set_window_title(f"{Path(self.current_path).name} (saving...)")
 
     # ------------------------------------------------------------------
     # IO worker callbacks
@@ -358,14 +362,14 @@ class MainWindow(QMainWindow):
         self._refresh_validation_status()
         cfg.remember_path(self.current_path)
         self._rebuild_recent_menu()
-        self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path}")
+        self._set_window_title(Path(self.current_path).name)
 
     @safe_action
     def _on_saved(self, path: str) -> None:
         self.current_path = str(Path(path).resolve())
         cfg.remember_path(self.current_path)
         self._rebuild_recent_menu()
-        self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path}")
+        self._set_window_title(Path(self.current_path).name)
 
     @safe_action
     def _on_io_failed(self, op: str, path: str, error: str) -> None:
@@ -490,7 +494,7 @@ class MainWindow(QMainWindow):
     @safe_action
     def _on_workspace_modified(self) -> None:
         if self.current_path:
-            self.setWindowTitle(f"J1939 PCAN Simulator - {self.current_path} *")
+            self._set_window_title(f"{Path(self.current_path).name} *")
         self._refresh_validation_status()
 
     @safe_action
@@ -498,6 +502,7 @@ class MainWindow(QMainWindow):
         sel = self.message_panel.selected_message()
         if sel is not None and sel.can_id == can_id and not sel.is_dm1():
             self.signal_panel.refresh()
+            self.signal_panel.flash_value_cells()
 
     # ------------------------------------------------------------------
     # Workspace UI refresh
@@ -506,6 +511,12 @@ class MainWindow(QMainWindow):
     def _refresh_workspace_ui(self) -> None:
         self.message_panel.set_workspace(self.workspace)
         self._refresh_validation_status()
+
+    def _set_window_title(self, detail: str = "") -> None:
+        title = "J1939 PCAN Simulator"
+        if detail:
+            title = f"{title} - {detail}"
+        self.setWindowTitle(title)
 
     def _refresh_validation_status(self) -> None:
         self.statusBar().showMessage(validation_status_text(self.workspace))

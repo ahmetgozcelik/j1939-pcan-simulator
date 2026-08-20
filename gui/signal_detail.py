@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -31,6 +32,8 @@ from frame_builder import (
     physical_to_raw,
     raw_to_physical,
 )
+from gui.theme import repolish
+from gui.waveform import WaveformWidget
 from j1939_id import PgnCategory, parse_can_id
 
 
@@ -64,7 +67,7 @@ class _RawPhysPair(QWidget):
         self.spin_phys = QDoubleSpinBox()
         self.spin_phys.setDecimals(4)
         self.spin_phys.setRange(-1e12, 1e12)
-        _style_numeric_control(self.spin_phys, minimum_width=150)
+        _style_numeric_control(self.spin_phys, minimum_width=170)
         layout.addWidget(QLabel("raw"))
         layout.addWidget(self.spin_raw, 1)
         layout.addWidget(QLabel("phys"))
@@ -138,11 +141,26 @@ class SignalDetail(QWidget):
     # ------------------------------------------------------------------
 
     def _build_ui(self) -> None:
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 8, 8, 8)
-        outer.setSpacing(8)
+        self.setMinimumWidth(500)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        root.addWidget(self.scroll)
+
+        content = QWidget()
+        content.setObjectName("SignalDetailContent")
+        self.scroll.setWidget(content)
+
+        outer = QVBoxLayout(content)
+        outer.setContentsMargins(12, 10, 12, 14)
+        outer.setSpacing(10)
 
         self.title = QLabel("Signal Detail")
+        self.title.setObjectName("SignalDetailTitle")
         f = self.title.font()
         f.setBold(True)
         f.setPointSize(f.pointSize() + 1)
@@ -150,7 +168,7 @@ class SignalDetail(QWidget):
         outer.addWidget(self.title)
 
         # --- J1939 ID summary ---
-        self.grp_j1939 = QGroupBox("J1939 Identifier")
+        self.grp_j1939 = QGroupBox("J1939 IDENTIFIER")
         f0 = QFormLayout(self.grp_j1939)
         _configure_form_layout(f0)
         self.lbl_j1939_pgn = QLabel("-")
@@ -174,14 +192,14 @@ class SignalDetail(QWidget):
         outer.addWidget(self.grp_j1939)
 
         # --- Identity ---
-        self.grp_identity = QGroupBox("Identity")
+        self.grp_identity = QGroupBox("IDENTITY")
         f1 = QFormLayout(self.grp_identity)
         _configure_form_layout(f1)
         self.edt_name = QLineEdit()
         self.edt_unit = QLineEdit()
         for line_edit in (self.edt_name, self.edt_unit):
-            line_edit.setMinimumHeight(28)
-            line_edit.setMinimumWidth(220)
+            line_edit.setMinimumHeight(32)
+            line_edit.setMinimumWidth(260)
         self.edt_name.editingFinished.connect(self._on_text_changed)
         self.edt_unit.editingFinished.connect(self._on_text_changed)
         f1.addRow("Name:", self.edt_name)
@@ -189,7 +207,7 @@ class SignalDetail(QWidget):
         outer.addWidget(self.grp_identity)
 
         # --- Layout ---
-        self.grp_layout = QGroupBox("Bit Layout")
+        self.grp_layout = QGroupBox("BIT LAYOUT")
         f2 = QFormLayout(self.grp_layout)
         _configure_form_layout(f2)
         self.spin_byte = QSpinBox()
@@ -203,8 +221,8 @@ class SignalDetail(QWidget):
             self.cmb_order.addItem(label, k)
         for spin in (self.spin_byte, self.spin_bit, self.spin_len):
             _style_numeric_control(spin)
-        self.cmb_order.setMinimumHeight(28)
-        self.cmb_order.setMinimumWidth(220)
+        self.cmb_order.setMinimumHeight(32)
+        self.cmb_order.setMinimumWidth(260)
         for w in (self.spin_byte, self.spin_bit, self.spin_len, self.cmb_order):
             if isinstance(w, QSpinBox):
                 w.valueChanged.connect(self._on_value_changed)
@@ -217,7 +235,7 @@ class SignalDetail(QWidget):
         outer.addWidget(self.grp_layout)
 
         # --- Scale / Offset ---
-        self.grp_scale = QGroupBox("Scale / Offset")
+        self.grp_scale = QGroupBox("SCALE / OFFSET")
         f3 = QFormLayout(self.grp_scale)
         _configure_form_layout(f3)
         self.spin_scale = QDoubleSpinBox()
@@ -234,13 +252,13 @@ class SignalDetail(QWidget):
         f3.addRow("Scale:", self.spin_scale)
         f3.addRow("Offset:", self.spin_offset)
         self.lbl_scale_error = QLabel("Scale must not be zero.")
-        self.lbl_scale_error.setStyleSheet("color: #ff6b5f;")
+        self.lbl_scale_error.setObjectName("ScaleError")
         self.lbl_scale_error.setVisible(False)
         f3.addRow("", self.lbl_scale_error)
         outer.addWidget(self.grp_scale)
 
         # --- Range / Value (paired raw+phys) ---
-        self.grp_range = QGroupBox("Range and Current Value")
+        self.grp_range = QGroupBox("RANGE AND CURRENT VALUE")
         f4 = QFormLayout(self.grp_range)
         _configure_form_layout(f4)
         self.pair_min = _RawPhysPair()
@@ -255,14 +273,14 @@ class SignalDetail(QWidget):
         outer.addWidget(self.grp_range)
 
         # --- Simulation ---
-        self.grp_simulation = QGroupBox("Simulation")
+        self.grp_simulation = QGroupBox("SIMULATION")
         f5 = QFormLayout(self.grp_simulation)
         _configure_form_layout(f5)
         self.cmb_mode = QComboBox()
         for k, label in SIM_MODES:
             self.cmb_mode.addItem(label, k)
-        self.cmb_mode.setMinimumHeight(28)
-        self.cmb_mode.setMinimumWidth(220)
+        self.cmb_mode.setMinimumHeight(32)
+        self.cmb_mode.setMinimumWidth(260)
         self.cmb_mode.currentIndexChanged.connect(self._on_mode_changed)
         f5.addRow("Mode:", self.cmb_mode)
 
@@ -297,17 +315,21 @@ class SignalDetail(QWidget):
         outer.addWidget(self.grp_simulation)
 
         # --- Live preview ---
-        self.grp_preview = QGroupBox("Frame Preview (whole message)")
+        self.grp_preview = QGroupBox("FRAME PREVIEW / WAVEFORM")
         pl = QVBoxLayout(self.grp_preview)
+        pl.setSpacing(10)
         self.lbl_preview = QLabel("FF FF FF FF FF FF FF FF")
+        self.lbl_preview.setObjectName("FrameBytes")
         self.lbl_preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
         f6 = self.lbl_preview.font()
-        f6.setFamily("Consolas")
+        f6.setFamily("JetBrains Mono")
         f6.setPointSize(max(11, f6.pointSize() + 2))
         f6.setBold(True)
         self.lbl_preview.setFont(f6)
-        self.lbl_preview.setMinimumHeight(30)
+        self.lbl_preview.setMinimumHeight(36)
         pl.addWidget(self.lbl_preview)
+        self.waveform = WaveformWidget()
+        pl.addWidget(self.waveform)
         outer.addWidget(self.grp_preview)
 
         outer.addStretch(1)
@@ -324,9 +346,11 @@ class SignalDetail(QWidget):
             self.title.setText("(no signal selected)")
             self._set_signal_controls_enabled(False)
             self._refresh_preview()
+            self.waveform.set_signal(None)
             return
         self._set_signal_controls_enabled(True)
         self.title.setText(f"Signal: {signal.name}")
+        self.waveform.set_signal(signal)
         self._loading = True
         try:
             self.edt_name.setText(signal.name)
@@ -431,11 +455,11 @@ class SignalDetail(QWidget):
     def _update_scale_validation(self) -> None:
         invalid = self.spin_scale.value() == 0
         self.lbl_scale_error.setVisible(invalid)
+        self.spin_scale.setProperty("invalid", invalid)
+        repolish(self.spin_scale)
         if invalid:
-            self.spin_scale.setStyleSheet("border: 1px solid #ff6b5f;")
             self.spin_scale.setToolTip("Scale must not be zero.")
         else:
-            self.spin_scale.setStyleSheet("")
             self.spin_scale.setToolTip("")
 
     def _set_signal_controls_enabled(self, enabled: bool) -> None:
@@ -483,6 +507,7 @@ class SignalDetail(QWidget):
         try:
             data = build_frame(self.message)
             self.lbl_preview.setText(format_bytes(data))
+            self.waveform.sample_now()
         except Exception:
             self.lbl_preview.setText("(error building frame)")
 
@@ -503,24 +528,25 @@ def _configure_form_layout(layout: QFormLayout) -> None:
     layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
     layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
     layout.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
-    layout.setHorizontalSpacing(10)
-    layout.setVerticalSpacing(6)
+    layout.setHorizontalSpacing(14)
+    layout.setVerticalSpacing(8)
 
 
-def _style_numeric_control(widget, minimum_width: int = 132) -> None:
-    widget.setMinimumHeight(28)
+def _style_numeric_control(widget, minimum_width: int = 150) -> None:
+    widget.setMinimumHeight(32)
     widget.setMinimumWidth(minimum_width)
-    font = QFont("Consolas")
+    font = QFont("JetBrains Mono")
     font.setStyleHint(QFont.Monospace)
-    font.setPointSize(max(10, font.pointSize()))
+    font.setPointSize(max(11, font.pointSize()))
     widget.setFont(font)
 
 
 def _style_value_label(label: QLabel) -> None:
     label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    label.setMinimumWidth(150)
-    label.setMinimumHeight(22)
-    font = QFont("Consolas")
+    label.setObjectName("J1939Value")
+    label.setMinimumWidth(190)
+    label.setMinimumHeight(26)
+    font = QFont("JetBrains Mono")
     font.setStyleHint(QFont.Monospace)
-    font.setPointSize(max(10, font.pointSize()))
+    font.setPointSize(max(11, font.pointSize()))
     label.setFont(font)
