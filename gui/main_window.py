@@ -288,11 +288,18 @@ class MainWindow(QMainWindow):
 
     @safe_action
     def _action_new(self, checked=False) -> None:
+        backup_path = cfg.save_recovery_backup(
+            self.workspace,
+            "before_new",
+            self.current_path,
+        )
         self._stop_all()
         self.workspace = Workspace()
         self.current_path = None
         self._refresh_workspace_ui()
         self._refresh_validation_status()
+        if backup_path:
+            self.statusBar().showMessage(f"Recovery backup saved: {backup_path}")
         self.setWindowTitle("J1939 PCAN Simulator - (untitled)")
 
     @safe_action
@@ -324,6 +331,7 @@ class MainWindow(QMainWindow):
 
     @safe_action
     def _open_path(self, path: str) -> None:
+        cfg.save_recovery_backup(self.workspace, "before_open", self.current_path)
         self.io_worker.request_load.emit(str(Path(path)))
 
     @safe_action

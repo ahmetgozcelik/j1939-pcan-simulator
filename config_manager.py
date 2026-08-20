@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, List, Optional
@@ -18,6 +19,7 @@ RECENT_FILE = APP_DIR / "recent.json"
 DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs" / "default.json"
 AUTOSAVE_PATH = APP_DIR / "autosave.json"
 APP_SETTINGS_FILE = APP_DIR / "settings.json"
+RECOVERY_DIR = APP_DIR / "recovery"
 
 
 VALID_BYTE_ORDERS = ("little_endian", "big_endian")
@@ -202,6 +204,50 @@ def save(path: str | os.PathLike, ws: Workspace) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("w", encoding="utf-8") as f:
         json.dump(workspace_to_dict(ws), f, indent=2, ensure_ascii=False)
+
+
+def save_recovery_backup(
+    ws: Workspace,
+    reason: str,
+    source_path: Optional[str] = None,
+    max_backups: int = 20,
+) -> Optional[Path]:
+    if not ws.messages:
+        return None
+    RECOVERY_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    safe_reason = "".join(ch if ch.isalnum() or ch in ("-", "_") else "_" for ch in reason)
+    path = RECOVERY_DIR / f"{timestamp}_{safe_reason}.json"
+    data = workspace_to_dict(ws)
+    data["_recovery"] = {
+        "reason": reason,
+        "source_path": source_path,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    with path.open("w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+    _prune_recovery_backups(max_backups)
+    return path
+
+
+def list_recovery_backups() -> List[Path]:
+    if not RECOVERY_DIR.exists():
+        return []
+    return sorted(
+        (p for p in RECOVERY_DIR.glob("*.json") if p.is_file()),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+
+def _prune_recovery_backups(max_backups: int) -> None:
+    if max_backups < 1:
+        return
+    for old_path in list_recovery_backups()[max_backups:]:
+        try:
+            old_path.unlink()
+        except Exception:
+            pass
 
 
 def default_workspace() -> Workspace:

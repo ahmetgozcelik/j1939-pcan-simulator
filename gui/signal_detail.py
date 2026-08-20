@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Optional
 
 from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -59,11 +60,11 @@ class _RawPhysPair(QWidget):
         layout.setSpacing(4)
         self.spin_raw = QSpinBox()
         self.spin_raw.setRange(0, (1 << 31) - 1)
-        self.spin_raw.setMinimumWidth(110)
+        _style_numeric_control(self.spin_raw)
         self.spin_phys = QDoubleSpinBox()
         self.spin_phys.setDecimals(4)
         self.spin_phys.setRange(-1e12, 1e12)
-        self.spin_phys.setMinimumWidth(140)
+        _style_numeric_control(self.spin_phys, minimum_width=150)
         layout.addWidget(QLabel("raw"))
         layout.addWidget(self.spin_raw, 1)
         layout.addWidget(QLabel("phys"))
@@ -151,14 +152,20 @@ class SignalDetail(QWidget):
         # --- J1939 ID summary ---
         self.grp_j1939 = QGroupBox("J1939 Identifier")
         f0 = QFormLayout(self.grp_j1939)
+        _configure_form_layout(f0)
         self.lbl_j1939_pgn = QLabel("-")
         self.lbl_j1939_priority = QLabel("-")
         self.lbl_j1939_sa = QLabel("-")
         self.lbl_j1939_da_ge = QLabel("-")
         self.lbl_j1939_type = QLabel("-")
-        self.lbl_j1939_pgn.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.lbl_j1939_sa.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.lbl_j1939_da_ge.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        for label in (
+            self.lbl_j1939_pgn,
+            self.lbl_j1939_priority,
+            self.lbl_j1939_sa,
+            self.lbl_j1939_da_ge,
+            self.lbl_j1939_type,
+        ):
+            _style_value_label(label)
         f0.addRow("PGN:", self.lbl_j1939_pgn)
         f0.addRow("Priority:", self.lbl_j1939_priority)
         f0.addRow("Source Address:", self.lbl_j1939_sa)
@@ -169,8 +176,12 @@ class SignalDetail(QWidget):
         # --- Identity ---
         self.grp_identity = QGroupBox("Identity")
         f1 = QFormLayout(self.grp_identity)
+        _configure_form_layout(f1)
         self.edt_name = QLineEdit()
         self.edt_unit = QLineEdit()
+        for line_edit in (self.edt_name, self.edt_unit):
+            line_edit.setMinimumHeight(28)
+            line_edit.setMinimumWidth(220)
         self.edt_name.editingFinished.connect(self._on_text_changed)
         self.edt_unit.editingFinished.connect(self._on_text_changed)
         f1.addRow("Name:", self.edt_name)
@@ -180,6 +191,7 @@ class SignalDetail(QWidget):
         # --- Layout ---
         self.grp_layout = QGroupBox("Bit Layout")
         f2 = QFormLayout(self.grp_layout)
+        _configure_form_layout(f2)
         self.spin_byte = QSpinBox()
         self.spin_byte.setRange(0, 7)
         self.spin_bit = QSpinBox()
@@ -189,6 +201,10 @@ class SignalDetail(QWidget):
         self.cmb_order = QComboBox()
         for k, label in BYTE_ORDERS:
             self.cmb_order.addItem(label, k)
+        for spin in (self.spin_byte, self.spin_bit, self.spin_len):
+            _style_numeric_control(spin)
+        self.cmb_order.setMinimumHeight(28)
+        self.cmb_order.setMinimumWidth(220)
         for w in (self.spin_byte, self.spin_bit, self.spin_len, self.cmb_order):
             if isinstance(w, QSpinBox):
                 w.valueChanged.connect(self._on_value_changed)
@@ -203,6 +219,7 @@ class SignalDetail(QWidget):
         # --- Scale / Offset ---
         self.grp_scale = QGroupBox("Scale / Offset")
         f3 = QFormLayout(self.grp_scale)
+        _configure_form_layout(f3)
         self.spin_scale = QDoubleSpinBox()
         self.spin_scale.setDecimals(6)
         self.spin_scale.setRange(-1e9, 1e9)
@@ -210,6 +227,8 @@ class SignalDetail(QWidget):
         self.spin_offset = QDoubleSpinBox()
         self.spin_offset.setDecimals(6)
         self.spin_offset.setRange(-1e9, 1e9)
+        for spin in (self.spin_scale, self.spin_offset):
+            _style_numeric_control(spin)
         for w in (self.spin_scale, self.spin_offset):
             w.valueChanged.connect(self._on_scale_changed)
         f3.addRow("Scale:", self.spin_scale)
@@ -223,6 +242,7 @@ class SignalDetail(QWidget):
         # --- Range / Value (paired raw+phys) ---
         self.grp_range = QGroupBox("Range and Current Value")
         f4 = QFormLayout(self.grp_range)
+        _configure_form_layout(f4)
         self.pair_min = _RawPhysPair()
         self.pair_max = _RawPhysPair()
         self.pair_value = _RawPhysPair()
@@ -237,9 +257,12 @@ class SignalDetail(QWidget):
         # --- Simulation ---
         self.grp_simulation = QGroupBox("Simulation")
         f5 = QFormLayout(self.grp_simulation)
+        _configure_form_layout(f5)
         self.cmb_mode = QComboBox()
         for k, label in SIM_MODES:
             self.cmb_mode.addItem(label, k)
+        self.cmb_mode.setMinimumHeight(28)
+        self.cmb_mode.setMinimumWidth(220)
         self.cmb_mode.currentIndexChanged.connect(self._on_mode_changed)
         f5.addRow("Mode:", self.cmb_mode)
 
@@ -249,6 +272,7 @@ class SignalDetail(QWidget):
         self.spin_sine.setRange(0.1, 3600.0)
         self.spin_sine.setValue(10.0)
         self.spin_sine.valueChanged.connect(self._on_value_changed)
+        _style_numeric_control(self.spin_sine)
         f5.addRow(self.lbl_sine, self.spin_sine)
 
         # Sawtooth: ham/cycle adımı
@@ -258,6 +282,7 @@ class SignalDetail(QWidget):
         self.spin_saw.setRange(-1e9, 1e9)
         self.spin_saw.setSpecialValueText("auto")
         self.spin_saw.valueChanged.connect(self._on_value_changed)
+        _style_numeric_control(self.spin_saw)
         f5.addRow(self.lbl_saw, self.spin_saw)
 
         # Ramp (üçgen dalga): periyot
@@ -267,6 +292,7 @@ class SignalDetail(QWidget):
         self.spin_ramp.setRange(0.1, 3600.0)
         self.spin_ramp.setValue(10.0)
         self.spin_ramp.valueChanged.connect(self._on_value_changed)
+        _style_numeric_control(self.spin_ramp)
         f5.addRow(self.lbl_ramp, self.spin_ramp)
         outer.addWidget(self.grp_simulation)
 
@@ -277,8 +303,10 @@ class SignalDetail(QWidget):
         self.lbl_preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
         f6 = self.lbl_preview.font()
         f6.setFamily("Consolas")
-        f6.setPointSize(f6.pointSize() + 2)
+        f6.setPointSize(max(11, f6.pointSize() + 2))
+        f6.setBold(True)
         self.lbl_preview.setFont(f6)
+        self.lbl_preview.setMinimumHeight(30)
         pl.addWidget(self.lbl_preview)
         outer.addWidget(self.grp_preview)
 
@@ -469,3 +497,30 @@ def _category_label(category: PgnCategory) -> str:
         PgnCategory.PROPRIETARY_B: "proprietary B",
         PgnCategory.UNKNOWN: "unknown",
     }[category]
+
+
+def _configure_form_layout(layout: QFormLayout) -> None:
+    layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+    layout.setLabelAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+    layout.setFormAlignment(Qt.AlignLeft | Qt.AlignTop)
+    layout.setHorizontalSpacing(10)
+    layout.setVerticalSpacing(6)
+
+
+def _style_numeric_control(widget, minimum_width: int = 132) -> None:
+    widget.setMinimumHeight(28)
+    widget.setMinimumWidth(minimum_width)
+    font = QFont("Consolas")
+    font.setStyleHint(QFont.Monospace)
+    font.setPointSize(max(10, font.pointSize()))
+    widget.setFont(font)
+
+
+def _style_value_label(label: QLabel) -> None:
+    label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+    label.setMinimumWidth(150)
+    label.setMinimumHeight(22)
+    font = QFont("Consolas")
+    font.setStyleHint(QFont.Monospace)
+    font.setPointSize(max(10, font.pointSize()))
+    label.setFont(font)
