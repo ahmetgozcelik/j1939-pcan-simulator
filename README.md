@@ -1,109 +1,311 @@
 # J1939 PCAN Simulator
 
-**TR:** PEAK PCAN USB adaptörü üzerinden J1939 CAN mesajları gönderen masaüstü simülatör.  
-**EN:** A desktop J1939 CAN bus simulator that sends configurable messages via PEAK PCAN USB adapter.
+Desktop simulator for sending configurable SAE J1939 CAN frames through PEAK PCAN
+USB adapters or a software-only virtual CAN backend.
 
----
+TR: PEAK PCAN USB veya sanal CAN backend uzerinden yapilandirilabilir SAE J1939
+mesajlari gonderen masaustu simulator.
 
-## 🇹🇷 Türkçe
+## Status
 
-### Nedir?
-PCAN VIEW'da elle hex girmek yerine, J1939 CAN mesajlarını otomatik ve yapılandırılabilir şekilde gönderen bir test aracıdır. Motor sensör verileri, alarm kodları (DM1) ve elektrik sistemlerini simüle edebilirsiniz.
+This project is an operator-oriented J1939 test bench. It is useful for ECU, PLC,
+HMI, and bench-test workflows where repeatable PGN/SPN data is needed without
+manually typing payload bytes in PCAN-View.
 
-### Özellikler
-- PGN/SPN bazlı mesaj tanımlama (dışarıdan yapılandırılabilir)
-- Sinyal bazlı scale, offset, byte/bit pozisyonu yapılandırması
-- Simülasyon modları: Fixed, Random, Sine, Sawtooth, Ramp (üçgen dalga)
-- DM1 özel panel: SPN listesi, random aralık, otomatik lamp döngüsü
-- PCAN kanal ve bitrate seçimi (125/250/500 kbps, 1 Mbps)
-- JSON konfigürasyon kayıt/yükleme, son kullanılan dosya hafızası
-- Karanlık tema arayüz
+The UI and protocol helpers are designed around SAE J1939 concepts:
 
-### Gereksinimler
-- Windows 10/11 (64-bit)
-- Python 3.11+ ([python.org](https://www.python.org/downloads/) — Windows Store değil)
-- PEAK PCAN USB adaptör + sürücü ([peak-system.com](https://www.peak-system.com/Downloads.76.0.html))
+- 29-bit extended CAN identifiers
+- Priority, PGN, source address, destination address/group extension fields
+- PDU1/PDU2 PGN parsing rules
+- Standard, request, transport, diagnostic, proprietary A/B PGN categories
+- 8-byte single-frame J1939 messages
+- DM1 and DM2 diagnostic DTC simulation panels
+- PEAK PCAN and virtual python-can backends
 
-### Kurulum
-```bash
-git clone https://github.com/KULLANICI_ADINIZ/j1939-pcan-simulator.git
+## SAE J1939 Scope
+
+Supported:
+
+- 29-bit extended CAN ID parsing and formatting
+- PGN calculation using the SAE J1939 PDU rule:
+  - PDU1: `PF < 240`, `PS` is destination address and is not part of the PGN
+  - PDU2: `PF >= 240`, `PS` is group extension and is part of the PGN
+- Single-frame 8-byte payload packing
+- Little-endian and big-endian signal packing
+- Raw/physical value conversion with scale and offset
+- DM1 PGN `0x00FECA` / `65226`
+- DM2 PGN `0x00FECB` / `65227`
+- DM1/DM2 lamp status, flash lamp status, SPN, FMI, occurrence count preview
+- External DM lamp/FMI definitions in `configs/dm1_definitions.json`
+- Workspace validation for invalid IDs, duplicate IDs, signal overlap, bit
+  range errors, raw range errors, and invalid scale values
+
+Not currently supported:
+
+- J1939 Transport Protocol transmit for multi-packet payloads
+- Multi-DTC DM1/DM2 messages beyond a single 8-byte frame
+- Full SAE J1939 Digital Annex database import
+- Automatic SPN database lookup for every standard PGN
+- Hardware-in-the-loop verification without a connected PEAK adapter
+
+## PCAN Requirements
+
+For real CAN bus transmission:
+
+- Windows 10/11 64-bit
+- PEAK PCAN USB adapter
+- PEAK PCAN-Basic driver/runtime installed
+- `python-can`
+- Default J1939 bitrate: `250 kbps`
+- Supported UI bitrate options: `125 kbps`, `250 kbps`, `500 kbps`, `1 Mbps`
+- Default PCAN channel: `PCAN_USBBUS1`
+
+Important notes:
+
+- `PCANBasic.dll` is supplied by the PEAK PCAN-Basic installation.
+- The public repository should not include `PCANBasic.dll` unless its license and
+  redistribution terms are explicitly checked.
+- If the PEAK driver is not installed, the app should still open and can be used
+  in `virtual` backend mode for offline preview and UI testing.
+
+## Installation From Source
+
+```powershell
+git clone https://github.com/ahmetgozcelik/j1939-pcan-simulator.git
 cd j1939-pcan-simulator
 python -m venv .venv
 .venv\Scripts\activate
-pip install PyQt5 python-can
+pip install -r requirements.txt
 python main.py
 ```
 
-### EXE Oluşturma
-Aşağıdaki adımları izleyin:
+For development tests:
 
-```bash
-pip install pyinstaller
-pyinstaller J1939_Simulator.spec
+```powershell
+.venv\Scripts\python.exe -m unittest discover -s tests
+.venv\Scripts\python.exe -m compileall main.py can_interface.py config_manager.py frame_builder.py simulator_engine.py gui tests
 ```
 
-EXE dosyası `dist/J1939_Simulator.exe` olarak oluşur.  
-`configs` klasörü otomatik olarak EXE içine gömülür, ayrıca kopyalamanıza gerek yoktur.
+## Basic Usage
 
-> ⚠️ PEAK PCAN Basic sürücüsünün kurulu olması gerekir: [peak-system.com](https://www.peak-system.com/Downloads.76.0.html)  
-> ⚠️ Windows Defender uyarısı verirse "More info → Run anyway" seçin.
+1. Start the app with `python main.py` or the packaged EXE.
+2. Select backend:
+   - `PCAN` for PEAK hardware
+   - `Virtual` for offline software-only testing
+3. Select channel and bitrate.
+4. Click `Reconnect`.
+5. Open or edit a JSON configuration.
+6. Select a message row.
+7. Edit J1939 fields such as PGN, priority, source address, and destination/group
+   extension directly in the message table.
+8. For standard single-frame messages, add/edit signals in the signal panel.
+9. For DM1/DM2 messages, use the diagnostic DTC panel for lamp status, SPN, FMI,
+   occurrence count, and frame preview.
+10. Use `Start Active` to transmit active messages.
+11. Use `Stop All` to stop all running message timers.
+12. Check the frame log and validation status strip.
+13. Save the configuration as JSON.
 
----
+## Configuration Files
 
-## 🇬🇧 English
+The app loads JSON workspaces from the `configs` directory or any user-selected
+path.
 
-### What is it?
-A desktop simulator that automatically sends configurable J1939 CAN messages — no more manual hex entry in PCAN VIEW. Simulate engine sensors, diagnostic trouble codes (DM1), and electrical systems.
+Bundled examples:
 
-### Features
-- PGN/SPN based message definition (fully configurable)
-- Per-signal scale, offset, byte/bit position configuration
-- Simulation modes: Fixed, Random, Sine, Sawtooth, Ramp (triangle wave)
-- DM1 special panel: SPN list mode, random range, auto lamp cycling
-- PCAN channel and bitrate selection (125/250/500 kbps, 1 Mbps)
-- JSON config save/load with recent files memory
-- Dark theme UI
+- `configs/default.json`: compact starter workspace
+- `configs/global_j1939_comprehensive.json`: broader J1939-oriented example
+- `configs/dm1_definitions.json`: editable lamp/FMI definitions for DM1/DM2 UI
 
-### Requirements
-- Windows 10/11 (64-bit)
-- Python 3.11+ ([python.org](https://www.python.org/downloads/) — NOT Windows Store)
-- PEAK PCAN USB adapter + driver ([peak-system.com](https://www.peak-system.com/Downloads.76.0.html))
+User state is stored outside the repository:
 
-### Installation
-```bash
-git clone https://github.com/KULLANICI_ADINIZ/j1939-pcan-simulator.git
+- Recent files and adapter settings: `%USERPROFILE%\.j1939_simulator`
+- Recovery backups: `%USERPROFILE%\.j1939_simulator\recovery`
+
+## Workspace JSON Schema
+
+Top-level shape:
+
+```json
+{
+  "version": "1.0",
+  "messages": []
+}
+```
+
+Message shape:
+
+```json
+{
+  "can_id": "18F00480",
+  "name": "EEC1 - Electronic Engine Controller 1",
+  "cycle_ms": 100,
+  "active": true,
+  "signals": [],
+  "dm1_config": null
+}
+```
+
+Signal shape:
+
+```json
+{
+  "name": "Engine Speed",
+  "byte_pos": 3,
+  "bit_pos": 0,
+  "bit_length": 16,
+  "byte_order": "little_endian",
+  "scale": 0.125,
+  "offset": 0.0,
+  "raw_min": 0,
+  "raw_max": 64255,
+  "raw_value": 12000,
+  "sim_mode": "ramp",
+  "unit": "rpm",
+  "sine_period_s": 10.0,
+  "ramp_step": null,
+  "ramp_period_s": 10.0
+}
+```
+
+DM1/DM2 diagnostic config shape:
+
+```json
+{
+  "lamp_status": 0,
+  "flash_lamp_status": 255,
+  "lamp_mode": "fixed",
+  "auto_lamp_interval_s": 2.0,
+  "fmi": 3,
+  "occurrence": 0,
+  "spn": 104,
+  "spn_mode": "fixed",
+  "spn_list": [100, 110, 190, 168],
+  "spn_list_interval_s": 2.0,
+  "spn_range_min": 0,
+  "spn_range_max": 524287,
+  "spn_range_interval_s": 2.0
+}
+```
+
+Supported signal simulation modes:
+
+- `fixed`
+- `random`
+- `sine`
+- `sawtooth`
+- `ramp`
+
+Supported diagnostic SPN modes:
+
+- `fixed`
+- `list`
+- `random_range`
+
+## Release Packaging Notes
+
+The source application is the primary supported workflow at this stage. EXE
+release packaging is handled separately so driver/runtime redistribution can be
+checked carefully.
+
+Packaging requirements for a future release:
+
+- `configs` must be bundled with the executable.
+- `can.interfaces.pcan` and `can.interfaces.virtual` must be available.
+- The PEAK driver/runtime should be installed on the target Windows machine.
+- Bundling `PCANBasic.dll` requires an explicit license/redistribution decision.
+- A clean Windows smoke test should be run with and without a connected PEAK
+  adapter before publishing the EXE.
+
+## Troubleshooting
+
+### App opens but PCAN shows disconnected
+
+Check:
+
+- PEAK PCAN-Basic driver is installed
+- PCAN USB adapter is connected
+- Correct channel is selected, usually `PCAN_USBBUS1`
+- Bitrate matches the target bus, usually `250 kbps` for J1939
+- Another application is not holding the adapter exclusively
+
+Use `Virtual` backend to verify the UI and frame preview without hardware.
+
+### Driver is not loaded
+
+Install or repair the PEAK PCAN-Basic package, then reconnect the adapter and
+restart the app.
+
+### Frames are shown in preview but not received by the target ECU
+
+Check:
+
+- Bus bitrate
+- 120 ohm termination
+- CAN-H/CAN-L wiring
+- 29-bit extended identifier support on the receiver
+- PGN, source address, destination address/group extension
+- Active state and cycle period
+
+### Validation shows signal overlap
+
+Two signals are mapped to the same payload bits. Adjust byte position, bit
+position, or bit length until the validation status returns to `OK`.
+
+### DM1/DM2 panel does not show expected lamp/FMI labels
+
+Edit `configs/dm1_definitions.json`, then click `Reload` in the diagnostic DTC
+panel.
+
+### New configuration replaced current work
+
+Recovery backups are written before destructive open/new actions when the
+current workspace has messages. Check:
+
+```text
+%USERPROFILE%\.j1939_simulator\recovery
+```
+
+## Known Limitations
+
+- Transport Protocol is planned but not implemented.
+- DM1/DM2 currently focus on one DTC payload in a single 8-byte frame.
+- Standard PGN/SPN definitions are examples, not a complete licensed SAE
+  database.
+- PCAN hardware behavior must be verified on the target Windows machine.
+- The virtual backend is for software smoke testing; it does not prove physical
+  bus wiring, bitrate, or adapter driver health.
+
+## Turkish Summary
+
+- Gercek PCAN gonderimi icin PEAK driver kurulu olmalidir.
+- PCAN yoksa `Virtual` backend ile arayuz ve frame preview test edilebilir.
+- J1939 mesajlari 29-bit extended CAN ID olarak modellenir.
+- DM1 `0x00FECA`, DM2 `0x00FECB` PGN'leri diagnostik DTC panelini acar.
+- TP/multi-packet mesajlar henuz desteklenmez.
+
+Kaynak koddan calistirma:
+
+```powershell
+git clone https://github.com/ahmetgozcelik/j1939-pcan-simulator.git
 cd j1939-pcan-simulator
 python -m venv .venv
 .venv\Scripts\activate
-pip install PyQt5 python-can
+pip install -r requirements.txt
 python main.py
 ```
 
-### Build EXE
-Follow these steps:
+Temel kullanim akisi:
 
-```bash
-pip install pyinstaller
-pyinstaller J1939_Simulator.spec
-```
+1. Backend sec: `PCAN` veya `Virtual`.
+2. Channel ve bitrate sec.
+3. `Reconnect` ile baglan.
+4. JSON config ac veya duzenle.
+5. Mesaj/sinyal veya DM1/DM2 diagnostik alanlarini duzenle.
+6. `Start Active` ile aktif mesajlari baslat.
+7. Log ve validation satirini kontrol et.
+8. Config dosyasini kaydet.
 
-EXE will be created at `dist/J1939_Simulator.exe`.  
-The `configs` folder is automatically bundled into the EXE.
+## License
 
-> ⚠️ PEAK PCAN Basic driver must be installed: [peak-system.com](https://www.peak-system.com/Downloads.76.0.html)  
-> ⚠️ If Windows Defender warns you, click "More info → Run anyway".
-
----
-
-## System Architecture
-
-```
-[J1939 PCAN Simulator]
-        ↓ USB
-[PEAK PCAN USB Adapter]
-        ↓ CAN Bus (J1939, 250 kbps default)
-[Target Device / ECU / PLC]
-```
-
-## License / Lisans
-MIT License — free to use, modify and distribute.
+MIT License.
