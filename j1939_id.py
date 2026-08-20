@@ -21,6 +21,7 @@ PGN_TP_DT = 0x00EB00
 PGN_TP_CM = 0x00EC00
 PGN_PROPRIETARY_A = 0x00EF00
 PGN_DM1 = 0x00FECA
+PGN_DM2 = 0x00FECB
 PGN_PROPRIETARY_B_MIN = 0x00FF00
 PGN_PROPRIETARY_B_MAX = 0x00FFFF
 
@@ -146,7 +147,7 @@ def classify_pgn(pgn: int) -> PgnCategory:
         return PgnCategory.REQUEST
     if pgn in (PGN_TP_CM, PGN_TP_DT):
         return PgnCategory.TRANSPORT
-    if pgn == PGN_DM1:
+    if pgn in (PGN_DM1, PGN_DM2):
         return PgnCategory.DIAGNOSTIC
     if pgn == PGN_PROPRIETARY_A:
         return PgnCategory.PROPRIETARY_A

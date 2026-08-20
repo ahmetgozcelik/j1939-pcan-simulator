@@ -394,8 +394,9 @@ class SignalDetail(QWidget):
         self.signal = signal
         self._refresh_j1939_summary()
         if signal is None:
-            self.title.setText("(no signal selected)")
+            self.title.setText("DM1 message selected" if message and message.is_dm1() else "(no signal selected)")
             self._set_signal_controls_enabled(False)
+            self._clear_signal_fields()
             self._refresh_preview()
             self.waveform.set_signal(None)
             return
@@ -523,6 +524,29 @@ class SignalDetail(QWidget):
             self.grp_preview,
         ):
             group.setEnabled(enabled)
+
+    def _clear_signal_fields(self) -> None:
+        self._loading = True
+        try:
+            self.edt_name.clear()
+            self.edt_unit.clear()
+            self.spin_byte.setValue(0)
+            self.spin_bit.setValue(0)
+            self.spin_len.setValue(1)
+            self.cmb_order.setCurrentIndex(0)
+            self.spin_scale.setValue(1.0)
+            self.spin_offset.setValue(0.0)
+            for pair in (self.pair_min, self.pair_max, self.pair_value):
+                pair.set_scale_offset(1.0, 0.0)
+                pair.set_raw(0)
+            self.cmb_mode.setCurrentIndex(self.cmb_mode.findData("fixed"))
+            self.spin_sine.setValue(10.0)
+            self.spin_saw.setValue(self.spin_saw.minimum())
+            self.spin_ramp.setValue(10.0)
+            self._toggle_sim_extras("fixed")
+            self._update_scale_validation()
+        finally:
+            self._loading = False
 
     def _refresh_j1939_summary(self) -> None:
         if self.message is None:

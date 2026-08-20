@@ -105,10 +105,18 @@ class DM1DefinitionsTests(unittest.TestCase):
     def test_lamp_status_controls_are_readable_and_externalized(self):
         panel = DM1Panel(FakeEngine())
 
-        self.assertEqual(panel.btn_open_definitions.text(), "Definitions...")
-        self.assertEqual(panel.btn_reload_definitions.text(), "Reload")
+        self.assertEqual(panel.btn_open_definitions.text(), "Edit JSON...")
+        self.assertEqual(panel.btn_reload_definitions.text(), "Reload JSON")
+        self.assertIn("Definition file:", panel.lbl_definitions_status.text())
         for checkbox in panel.lamp_checkboxes.values():
             self.assertGreaterEqual(checkbox.minimumWidth(), 280)
+
+    def test_reload_reports_what_changed(self):
+        panel = DM1Panel(FakeEngine())
+
+        panel._reload_definitions()
+
+        self.assertIn("Reloaded", panel.lbl_definitions_status.text())
 
 
 if __name__ == "__main__":

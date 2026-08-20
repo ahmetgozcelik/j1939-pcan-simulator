@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from typing import Optional
 
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import QProcess, Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QCheckBox,
@@ -32,6 +33,8 @@ from dm1_definitions import (
 )
 from frame_builder import build_dm1_frame, format_bytes
 from simulator_engine import DM1State, SimulatorEngine
+
+DEFINITION_DISPLAY_PATH = "configs/dm1_definitions.json"
 
 
 class DM1Panel(QWidget):
@@ -68,15 +71,21 @@ class DM1Panel(QWidget):
         self.cmb_lamp_mode.currentIndexChanged.connect(self._on_lamp_mode_changed)
         lamp_mode_row.addWidget(self.cmb_lamp_mode)
         lamp_mode_row.addStretch()
-        self.btn_open_definitions = QPushButton("Definitions...")
-        self.btn_open_definitions.setToolTip(str(CONFIG_PATH))
+        self.btn_open_definitions = QPushButton("Edit JSON...")
+        self.btn_open_definitions.setToolTip(f"Open {DEFINITION_DISPLAY_PATH}")
         self.btn_open_definitions.clicked.connect(self._open_definitions)
-        self.btn_reload_definitions = QPushButton("Reload")
-        self.btn_reload_definitions.setToolTip("Reload DM1 definitions from JSON")
+        self.btn_reload_definitions = QPushButton("Reload JSON")
+        self.btn_reload_definitions.setToolTip("Reload DM1 definitions after editing the JSON file")
         self.btn_reload_definitions.clicked.connect(self._reload_definitions)
         lamp_mode_row.addWidget(self.btn_open_definitions)
         lamp_mode_row.addWidget(self.btn_reload_definitions)
         lamp_main.addLayout(lamp_mode_row)
+
+        self.lbl_definitions_status = QLabel(f"Definition file: {DEFINITION_DISPLAY_PATH}")
+        self.lbl_definitions_status.setObjectName("SecondaryText")
+        self.lbl_definitions_status.setWordWrap(True)
+        self.lbl_definitions_status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        lamp_main.addWidget(self.lbl_definitions_status)
 
         self.lamp_fixed_widget = QWidget()
         self.lamp_fixed_layout = QVBoxLayout(self.lamp_fixed_widget)
@@ -296,7 +305,15 @@ class DM1Panel(QWidget):
         self.cmb_fmi.blockSignals(False)
 
     def _open_definitions(self) -> None:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(CONFIG_PATH)))
+        opened = False
+        if sys.platform.startswith("win"):
+            opened = QProcess.startDetached("notepad.exe", [str(CONFIG_PATH)])
+        if not opened:
+            opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(CONFIG_PATH)))
+        if opened:
+            self.lbl_definitions_status.setText(f"Opened definition file: {DEFINITION_DISPLAY_PATH}")
+        else:
+            self.lbl_definitions_status.setText(f"Could not open definition file: {DEFINITION_DISPLAY_PATH}")
 
     def _reload_definitions(self) -> None:
         state = self._current_state()
@@ -308,6 +325,10 @@ class DM1Panel(QWidget):
                 checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
             except KeyError:
                 checkbox.setChecked(False)
+        self.lbl_definitions_status.setText(
+            f"Reloaded {len(self.dm1_definitions.lamps)} lamp definitions and "
+            f"{len(self.dm1_definitions.fmi_descriptions)} FMI descriptions."
+        )
         self._on_changed()
 
     def _on_lamp_mode_changed(self) -> None:

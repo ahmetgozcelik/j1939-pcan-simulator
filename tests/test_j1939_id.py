@@ -3,6 +3,7 @@ import unittest
 from config_manager import Message
 from j1939_id import (
     PGN_DM1,
+    PGN_DM2,
     PGN_PROPRIETARY_A,
     PGN_REQUEST,
     PgnCategory,
@@ -68,6 +69,7 @@ class J1939IdTests(unittest.TestCase):
         self.assertEqual(classify_pgn(PGN_REQUEST), PgnCategory.REQUEST)
         self.assertEqual(classify_pgn(0x00EC00), PgnCategory.TRANSPORT)
         self.assertEqual(classify_pgn(PGN_DM1), PgnCategory.DIAGNOSTIC)
+        self.assertEqual(classify_pgn(PGN_DM2), PgnCategory.DIAGNOSTIC)
         self.assertEqual(classify_pgn(PGN_PROPRIETARY_A), PgnCategory.PROPRIETARY_A)
         self.assertEqual(classify_pgn(0x00FF10), PgnCategory.PROPRIETARY_B)
         self.assertEqual(classify_pgn(0x00F004), PgnCategory.STANDARD)

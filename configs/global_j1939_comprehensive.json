@@ -576,6 +576,65 @@
       }
     },
     {
+      "can_id": "18FECB80",
+      "name": "DM2 - Previously Active Diagnostic Trouble Codes",
+      "cycle_ms": 1000,
+      "active": false,
+      "signals": [
+        {
+          "name": "Lamp Status",
+          "byte_pos": 0,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 255,
+          "raw_value": 0,
+          "sim_mode": "fixed",
+          "unit": "",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "Flash Lamp Status",
+          "byte_pos": 1,
+          "bit_pos": 0,
+          "bit_length": 8,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 255,
+          "raw_value": 255,
+          "sim_mode": "fixed",
+          "unit": "",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        },
+        {
+          "name": "DTC Raw Word",
+          "byte_pos": 2,
+          "bit_pos": 0,
+          "bit_length": 32,
+          "byte_order": "little_endian",
+          "scale": 1.0,
+          "offset": 0.0,
+          "raw_min": 0,
+          "raw_max": 4294967295,
+          "raw_value": 196712,
+          "sim_mode": "fixed",
+          "unit": "",
+          "sine_period_s": 10.0,
+          "ramp_step": null,
+          "ramp_period_s": 10.0
+        }
+      ]
+    },
+    {
       "can_id": "18EAFF80",
       "name": "REQUEST - Global PGN Request",
       "cycle_ms": 1000,

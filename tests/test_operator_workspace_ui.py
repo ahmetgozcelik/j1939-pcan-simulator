@@ -126,6 +126,17 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         self.assertEqual(detail.lbl_j1939_type.text(), "diagnostic")
         self.assertTrue(detail.grp_identity.isEnabled() is False)
         self.assertTrue(detail.grp_j1939.isEnabled())
+        self.assertEqual(detail.edt_name.text(), "")
+
+    def test_signal_detail_clears_stale_fields_for_dm1_message(self):
+        detail = SignalDetail()
+        detail.set_signal(Message(can_id="18F00480"), Message(can_id="18F00480").signals[0] if False else None)
+        detail.edt_name.setText("Stale Signal")
+
+        detail.set_signal(Message(can_id="18FECA80"), None)
+
+        self.assertEqual(detail.title.text(), "DM1 message selected")
+        self.assertEqual(detail.edt_name.text(), "")
 
     def test_validation_status_text_summarizes_workspace_errors(self):
         ok_text = validation_status_text(Workspace(messages=[Message(can_id="18FECA00")]))
