@@ -4,11 +4,11 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication, QHeaderView
+from PyQt5.QtWidgets import QApplication, QHeaderView, QScrollArea
 
 from config_manager import Message, Workspace
 from gui.log_panel import LogPanel
-from gui.main_window import validation_status_text
+from gui.main_window import MainWindow, validation_status_text
 from gui.message_panel import (
     COL_DA_GE,
     COL_ID,
@@ -137,6 +137,21 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
 
         self.assertEqual(detail.title.text(), "Diagnostic DTC message selected")
         self.assertEqual(detail.edt_name.text(), "")
+
+    def test_diagnostic_editor_is_scrollable_in_workspace(self):
+        window = MainWindow()
+        try:
+            window._on_message_selected(Message(can_id="18FECA80"))
+
+            current = window.center_stack.currentWidget()
+            self.assertIsInstance(current, QScrollArea)
+            self.assertIs(current.widget(), window.dm1_panel)
+            self.assertTrue(current.widgetResizable())
+            self.assertEqual(current.horizontalScrollBarPolicy(), Qt.ScrollBarAlwaysOff)
+        finally:
+            window.pcan.shutdown()
+            window.io_worker.shutdown()
+            window.close()
 
     def test_validation_status_text_summarizes_workspace_errors(self):
         ok_text = validation_status_text(Workspace(messages=[Message(can_id="18FECA00")]))

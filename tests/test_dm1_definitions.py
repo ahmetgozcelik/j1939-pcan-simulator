@@ -105,8 +105,8 @@ class DM1DefinitionsTests(unittest.TestCase):
     def test_lamp_status_controls_are_readable_and_externalized(self):
         panel = DM1Panel(FakeEngine())
 
-        self.assertEqual(panel.btn_open_definitions.text(), "Edit JSON...")
-        self.assertEqual(panel.btn_reload_definitions.text(), "Reload JSON")
+        self.assertEqual(panel.btn_open_definitions.text(), "Edit JSON")
+        self.assertEqual(panel.btn_reload_definitions.text(), "Reload")
         self.assertIn("Definition file:", panel.lbl_definitions_status.text())
         self.assertEqual(panel.lamp_matrix_layout.columnCount(), 3)
         for button in list(panel.lamp_checkboxes.values()) + list(panel.flash_lamp_checkboxes.values()):

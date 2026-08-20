@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QScrollArea,
     QSplitter,
     QStackedWidget,
     QToolBar,
@@ -139,9 +140,16 @@ class MainWindow(QMainWindow):
         self.dm1_panel = DM1Panel(self.engine)
         self.signal_detail = SignalDetail()
 
+        self.dm1_scroll = QScrollArea()
+        self.dm1_scroll.setObjectName("DiagnosticScroll")
+        self.dm1_scroll.setWidgetResizable(True)
+        self.dm1_scroll.setFrameShape(QScrollArea.NoFrame)
+        self.dm1_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.dm1_scroll.setWidget(self.dm1_panel)
+
         self.center_stack = QStackedWidget()
         self.center_stack.addWidget(self.signal_panel)  # 0
-        self.center_stack.addWidget(self.dm1_panel)     # 1
+        self.center_stack.addWidget(self.dm1_scroll)    # 1
         self.message_panel.setMinimumWidth(620)
         self.center_stack.setMinimumWidth(480)
         self.signal_detail.setMinimumWidth(500)
@@ -468,7 +476,7 @@ class MainWindow(QMainWindow):
             return
         if msg.is_diagnostic_dtc():
             self.dm1_panel.set_message(msg)
-            self.center_stack.setCurrentWidget(self.dm1_panel)
+            self.center_stack.setCurrentWidget(self.dm1_scroll)
             self.signal_detail.set_signal(msg, None)
         else:
             self.center_stack.setCurrentWidget(self.signal_panel)
