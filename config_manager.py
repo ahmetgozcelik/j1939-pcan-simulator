@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, List, Optional
 
+from j1939_id import is_dm1_can_id
+
 
 CURRENT_VERSION = "1.0"
 
@@ -79,9 +81,7 @@ class Message:
         return int(self.can_id, 16)
 
     def is_dm1(self) -> bool:
-        name_dm1 = "dm1" in self.name.lower()
-        id_dm1 = self.can_id.upper().endswith("CA00")
-        return name_dm1 or id_dm1
+        return is_dm1_can_id(self.can_id)
 
 
 @dataclass
