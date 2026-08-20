@@ -394,7 +394,11 @@ class SignalDetail(QWidget):
         self.signal = signal
         self._refresh_j1939_summary()
         if signal is None:
-            self.title.setText("DM1 message selected" if message and message.is_dm1() else "(no signal selected)")
+            self.title.setText(
+                "Diagnostic DTC message selected"
+                if message and message.is_diagnostic_dtc()
+                else "(no signal selected)"
+            )
             self._set_signal_controls_enabled(False)
             self._clear_signal_fields()
             self._refresh_preview()

@@ -44,7 +44,9 @@ class DM1Panel(QWidget):
         self.message: Optional[Message] = None
         self.dm1_definitions = load_dm1_definitions()
         self.lamp_checkboxes: dict[str, QCheckBox] = {}
+        self.flash_lamp_checkboxes: dict[str, QCheckBox] = {}
         self.lamp_fixed_layout: Optional[QVBoxLayout] = None
+        self.flash_lamp_layout: Optional[QVBoxLayout] = None
         self._loading = False
         self._build_ui()
 
@@ -91,8 +93,26 @@ class DM1Panel(QWidget):
         self.lamp_fixed_layout = QVBoxLayout(self.lamp_fixed_widget)
         self.lamp_fixed_layout.setContentsMargins(0, 0, 0, 0)
         self.lamp_fixed_layout.setSpacing(6)
-        self._populate_lamp_checkboxes()
+        self._populate_lamp_checkboxes(self.lamp_fixed_layout, self.lamp_checkboxes)
         lamp_main.addWidget(self.lamp_fixed_widget)
+
+        self.flash_lamp_widget = QWidget()
+        flash_outer = QVBoxLayout(self.flash_lamp_widget)
+        flash_outer.setContentsMargins(0, 6, 0, 0)
+        flash_outer.setSpacing(6)
+        flash_title = QLabel("Flash Lamp Status")
+        flash_title.setObjectName("SecondaryText")
+        flash_outer.addWidget(flash_title)
+        self.flash_lamp_layout = QVBoxLayout()
+        self.flash_lamp_layout.setContentsMargins(0, 0, 0, 0)
+        self.flash_lamp_layout.setSpacing(6)
+        flash_outer.addLayout(self.flash_lamp_layout)
+        self._populate_lamp_checkboxes(
+            self.flash_lamp_layout,
+            self.flash_lamp_checkboxes,
+            flash=True,
+        )
+        lamp_main.addWidget(self.flash_lamp_widget)
 
         self.lamp_auto_widget = QWidget()
         lamp_auto_layout = QHBoxLayout(self.lamp_auto_widget)
@@ -250,6 +270,8 @@ class DM1Panel(QWidget):
             self.cmb_lamp_mode.setCurrentIndex(lamp_mode_idx)
             for key, checkbox in self.lamp_checkboxes.items():
                 checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
+            for key, checkbox in self.flash_lamp_checkboxes.items():
+                checkbox.setChecked(get_lamp(state.flash_lamp_status, key, self.dm1_definitions))
             self.spin_lamp_interval.setValue(state.auto_lamp_interval_s)
 
             mode_map = {"fixed": 0, "list": 1, "random_range": 2}
@@ -275,23 +297,30 @@ class DM1Panel(QWidget):
     # Internal
     # ------------------------------------------------------------------
 
-    def _populate_lamp_checkboxes(self) -> None:
-        if self.lamp_fixed_layout is None:
+    def _populate_lamp_checkboxes(
+        self,
+        layout: Optional[QVBoxLayout],
+        target: dict[str, QCheckBox],
+        *,
+        flash: bool = False,
+    ) -> None:
+        if layout is None:
             return
-        while self.lamp_fixed_layout.count():
-            item = self.lamp_fixed_layout.takeAt(0)
+        while layout.count():
+            item = layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-        self.lamp_checkboxes.clear()
+        target.clear()
         for lamp in self.dm1_definitions.lamps:
             cb = QCheckBox(lamp.label)
             cb.setMinimumWidth(280)
-            cb.setToolTip(f"{lamp.label} - DM1 lamp status bits {lamp.bit}..{lamp.bit + 1}")
+            prefix = "flash lamp status" if flash else "lamp status"
+            cb.setToolTip(f"{lamp.label} - DM1/DM2 {prefix} bits {lamp.bit}..{lamp.bit + 1}")
             cb.toggled.connect(self._on_changed)
-            self.lamp_fixed_layout.addWidget(cb)
-            self.lamp_checkboxes[lamp.key] = cb
-        self.lamp_fixed_layout.addStretch(1)
+            layout.addWidget(cb)
+            target[lamp.key] = cb
+        layout.addStretch(1)
 
     def _populate_fmi_combo(self) -> None:
         current = self.cmb_fmi.currentData() if hasattr(self, "cmb_fmi") else 0
@@ -318,11 +347,21 @@ class DM1Panel(QWidget):
     def _reload_definitions(self) -> None:
         state = self._current_state()
         self.dm1_definitions = load_dm1_definitions()
-        self._populate_lamp_checkboxes()
+        self._populate_lamp_checkboxes(self.lamp_fixed_layout, self.lamp_checkboxes)
+        self._populate_lamp_checkboxes(
+            self.flash_lamp_layout,
+            self.flash_lamp_checkboxes,
+            flash=True,
+        )
         self._populate_fmi_combo()
         for key, checkbox in self.lamp_checkboxes.items():
             try:
                 checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
+            except KeyError:
+                checkbox.setChecked(False)
+        for key, checkbox in self.flash_lamp_checkboxes.items():
+            try:
+                checkbox.setChecked(get_lamp(state.flash_lamp_status, key, self.dm1_definitions))
             except KeyError:
                 checkbox.setChecked(False)
         self.lbl_definitions_status.setText(
@@ -357,6 +396,14 @@ class DM1Panel(QWidget):
         if lamp_mode == "fixed":
             for key, checkbox in self.lamp_checkboxes.items():
                 lamp = set_lamp(lamp, key, checkbox.isChecked(), self.dm1_definitions)
+        flash_lamp = 0xFF
+        for key, checkbox in self.flash_lamp_checkboxes.items():
+            flash_lamp = set_lamp(
+                flash_lamp,
+                key,
+                checkbox.isChecked(),
+                self.dm1_definitions,
+            )
 
         mode_idx = self.cmb_spn_mode.currentIndex()
         spn_mode = ["fixed", "list", "random_range"][mode_idx]
@@ -370,6 +417,7 @@ class DM1Panel(QWidget):
 
         state = DM1State(
             lamp_status=lamp,
+            flash_lamp_status=flash_lamp,
             lamp_mode=lamp_mode,
             auto_lamp_interval_s=self.spin_lamp_interval.value(),
             spn=self.spin_spn.value(),
@@ -394,7 +442,13 @@ class DM1Panel(QWidget):
 
     def _refresh_preview(self) -> None:
         state = self._current_state()
-        data = build_dm1_frame(state.lamp_status, state.spn, state.fmi, state.occurrence)
+        data = build_dm1_frame(
+            state.lamp_status,
+            state.spn,
+            state.fmi,
+            state.occurrence,
+            flash_lamp_status=state.flash_lamp_status,
+        )
         self.lbl_preview.setText(format_bytes(data))
 
     def _send_once(self) -> None:

@@ -11,6 +11,7 @@ from j1939_id import (
     classify_pgn,
     format_can_id,
     is_dm1_can_id,
+    is_diagnostic_dtc_can_id,
     parse_can_id,
     pgn_from_fields,
 )
@@ -64,6 +65,9 @@ class J1939IdTests(unittest.TestCase):
         self.assertTrue(is_dm1_can_id("18FECA00"))
         self.assertTrue(Message(can_id="18FECA00", name="Not diagnostic").is_dm1())
         self.assertFalse(Message(can_id="18FEEE00", name="DM1 label only").is_dm1())
+        self.assertTrue(is_diagnostic_dtc_can_id("18FECA00"))
+        self.assertTrue(is_diagnostic_dtc_can_id("18FECB80"))
+        self.assertTrue(Message(can_id="18FECB80", name="DM2").is_diagnostic_dtc())
 
     def test_pgn_categories(self):
         self.assertEqual(classify_pgn(PGN_REQUEST), PgnCategory.REQUEST)

@@ -163,6 +163,13 @@ def is_dm1_can_id(value: int | str) -> bool:
         return False
 
 
+def is_diagnostic_dtc_can_id(value: int | str) -> bool:
+    try:
+        return parse_can_id(value).pgn in (PGN_DM1, PGN_DM2)
+    except ValueError:
+        return False
+
+
 def _parse_can_id_value(value: int | str) -> int:
     if isinstance(value, int):
         can_id = value

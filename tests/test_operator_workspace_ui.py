@@ -135,7 +135,7 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
 
         detail.set_signal(Message(can_id="18FECA80"), None)
 
-        self.assertEqual(detail.title.text(), "DM1 message selected")
+        self.assertEqual(detail.title.text(), "Diagnostic DTC message selected")
         self.assertEqual(detail.edt_name.text(), "")
 
     def test_validation_status_text_summarizes_workspace_errors(self):

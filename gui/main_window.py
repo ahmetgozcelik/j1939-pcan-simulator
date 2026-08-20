@@ -237,11 +237,12 @@ class MainWindow(QMainWindow):
         """Kaydetmeden önce engine'deki DM1 state'lerini workspace'e yazar."""
         with self.engine.lock:
             for msg in self.workspace.messages:
-                if msg.is_dm1():
+                if msg.is_diagnostic_dtc():
                     state = self.engine.dm1_states.get(msg.can_id)
                     if state is not None:
                         msg.dm1_config = DM1Config(
                             lamp_status=state.lamp_status,
+                            flash_lamp_status=state.flash_lamp_status,
                             lamp_mode=state.lamp_mode,
                             auto_lamp_interval_s=state.auto_lamp_interval_s,
                             fmi=state.fmi,
@@ -258,10 +259,11 @@ class MainWindow(QMainWindow):
     def _load_dm1_states_from_workspace(self) -> None:
         """Yüklemeden sonra workspace'deki DM1 config'leri engine'e yazar."""
         for msg in self.workspace.messages:
-            if msg.is_dm1() and msg.dm1_config is not None:
+            if msg.is_diagnostic_dtc() and msg.dm1_config is not None:
                 c = msg.dm1_config
                 state = DM1State(
                     lamp_status=c.lamp_status,
+                    flash_lamp_status=c.flash_lamp_status,
                     lamp_mode=c.lamp_mode,
                     auto_lamp_interval_s=c.auto_lamp_interval_s,
                     fmi=c.fmi,
@@ -464,7 +466,7 @@ class MainWindow(QMainWindow):
             self.signal_panel.set_message(None)
             self.signal_detail.set_signal(None, None)
             return
-        if msg.is_dm1():
+        if msg.is_diagnostic_dtc():
             self.dm1_panel.set_message(msg)
             self.center_stack.setCurrentWidget(self.dm1_panel)
             self.signal_detail.set_signal(msg, None)
@@ -490,7 +492,7 @@ class MainWindow(QMainWindow):
     @safe_action
     def _on_frame_sent_refresh_panels(self, ts, can_id, data, decoded, sent_ok) -> None:
         sel = self.message_panel.selected_message()
-        if sel is not None and sel.can_id == can_id and not sel.is_dm1():
+        if sel is not None and sel.can_id == can_id and not sel.is_diagnostic_dtc():
             self.signal_panel.refresh()
             self.signal_panel.flash_value_cells()
 

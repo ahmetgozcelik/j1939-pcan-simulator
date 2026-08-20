@@ -33,6 +33,7 @@ class DecodedSignal:
 @dataclass
 class DM1State:
     lamp_status: int = 0x00
+    flash_lamp_status: int = 0xFF
     spn: int = 0
     fmi: int = 0
     occurrence: int = 0
@@ -110,7 +111,7 @@ class MessageRunner(QThread):
             decoded: List[DecodedSignal] = []
             overrides: Dict[int, int] = {}
 
-            if msg.is_dm1():
+            if msg.is_diagnostic_dtc():
                 state = self.engine.dm1_states.get(msg.can_id)
                 if state is None:
                     state = DM1State()
@@ -154,7 +155,13 @@ class MessageRunner(QThread):
                             self.engine.dm1_definitions,
                         )
 
-                data = build_dm1_frame(effective_lamp, effective_spn, state.fmi, state.occurrence)
+                data = build_dm1_frame(
+                    effective_lamp,
+                    effective_spn,
+                    state.fmi,
+                    state.occurrence,
+                    flash_lamp_status=state.flash_lamp_status,
+                )
                 decoded.append(DecodedSignal(
                     name="DM1",
                     raw=effective_spn,
@@ -286,9 +293,15 @@ class SimulatorEngine(QObject):
 
     def send_once(self, msg: Message) -> bytes:
         with self.lock:
-            if msg.is_dm1():
+            if msg.is_diagnostic_dtc():
                 state = self.get_dm1_state(msg.can_id)
-                data = build_dm1_frame(state.lamp_status, state.spn, state.fmi, state.occurrence)
+                data = build_dm1_frame(
+                    state.lamp_status,
+                    state.spn,
+                    state.fmi,
+                    state.occurrence,
+                    flash_lamp_status=state.flash_lamp_status,
+                )
                 decoded = [DecodedSignal(
                     name="DM1", raw=state.spn,
                     physical=float(state.spn),

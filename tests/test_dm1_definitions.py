@@ -110,6 +110,8 @@ class DM1DefinitionsTests(unittest.TestCase):
         self.assertIn("Definition file:", panel.lbl_definitions_status.text())
         for checkbox in panel.lamp_checkboxes.values():
             self.assertGreaterEqual(checkbox.minimumWidth(), 280)
+        for checkbox in panel.flash_lamp_checkboxes.values():
+            self.assertGreaterEqual(checkbox.minimumWidth(), 280)
 
     def test_reload_reports_what_changed(self):
         panel = DM1Panel(FakeEngine())
@@ -117,6 +119,13 @@ class DM1DefinitionsTests(unittest.TestCase):
         panel._reload_definitions()
 
         self.assertIn("Reloaded", panel.lbl_definitions_status.text())
+
+    def test_flash_lamp_status_updates_second_dm_payload_byte(self):
+        panel = DM1Panel(FakeEngine())
+        panel.lamp_checkboxes["red"].setChecked(True)
+        panel.flash_lamp_checkboxes["amber"].setChecked(True)
+
+        self.assertTrue(panel.lbl_preview.text().startswith("10 04 "))
 
 
 if __name__ == "__main__":

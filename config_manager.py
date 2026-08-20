@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Any, List, Optional
 
-from j1939_id import is_dm1_can_id
+from j1939_id import is_diagnostic_dtc_can_id, is_dm1_can_id
 
 
 CURRENT_VERSION = "1.0"
@@ -58,6 +58,7 @@ class Signal:
 class DM1Config:
     """DM1 mesajının simülasyon konfigürasyonu - JSON'a kaydedilir."""
     lamp_status: int = 0x00
+    flash_lamp_status: int = 0xFF
     lamp_mode: str = "fixed"
     auto_lamp_interval_s: float = 2.0
     fmi: int = 0
@@ -78,13 +79,16 @@ class Message:
     cycle_ms: int = 1000
     active: bool = False
     signals: List[Signal] = field(default_factory=list)
-    dm1_config: Optional[DM1Config] = None  # Sadece DM1 mesajları için
+    dm1_config: Optional[DM1Config] = None  # DM1/DM2 diagnostic DTC messages
 
     def can_id_int(self) -> int:
         return int(self.can_id, 16)
 
     def is_dm1(self) -> bool:
         return is_dm1_can_id(self.can_id)
+
+    def is_diagnostic_dtc(self) -> bool:
+        return is_diagnostic_dtc_can_id(self.can_id)
 
 
 @dataclass
@@ -124,6 +128,7 @@ def _signal_from_dict(d: dict) -> Signal:
 def _dm1_config_from_dict(d: dict) -> DM1Config:
     return DM1Config(
         lamp_status=int(d.get("lamp_status", 0x00)),
+        flash_lamp_status=int(d.get("flash_lamp_status", 0xFF)),
         lamp_mode=str(d.get("lamp_mode", "fixed")),
         auto_lamp_interval_s=float(d.get("auto_lamp_interval_s", 2.0)),
         fmi=int(d.get("fmi", 0)),
@@ -141,6 +146,7 @@ def _dm1_config_from_dict(d: dict) -> DM1Config:
 def _dm1_config_to_dict(c: DM1Config) -> dict:
     return {
         "lamp_status": c.lamp_status,
+        "flash_lamp_status": c.flash_lamp_status,
         "lamp_mode": c.lamp_mode,
         "auto_lamp_interval_s": c.auto_lamp_interval_s,
         "fmi": c.fmi,
