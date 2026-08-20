@@ -102,6 +102,14 @@ class DM1DefinitionsTests(unittest.TestCase):
         for forbidden in ("Simulasyon", "Simülasyon", "Degisim", "Değişim", "Detay", "Liste", "Aralik", "Aralık"):
             self.assertNotIn(forbidden, joined)
 
+    def test_lamp_status_controls_are_readable_and_externalized(self):
+        panel = DM1Panel(FakeEngine())
+
+        self.assertEqual(panel.btn_open_definitions.text(), "Definitions...")
+        self.assertEqual(panel.btn_reload_definitions.text(), "Reload")
+        for checkbox in panel.lamp_checkboxes.values():
+            self.assertGreaterEqual(checkbox.minimumWidth(), 280)
+
 
 if __name__ == "__main__":
     unittest.main()

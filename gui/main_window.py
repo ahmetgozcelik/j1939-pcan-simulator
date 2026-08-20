@@ -216,20 +216,6 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        act_start_all = QAction("Start Active", self)
-        act_start_all.setIcon(hmi_icon("play"))
-        act_start_all.setToolTip("Start active messages")
-        act_start_all.triggered.connect(self._start_active)
-        tb.addAction(act_start_all)
-
-        act_stop_all = QAction("Stop All", self)
-        act_stop_all.setIcon(hmi_icon("stop"))
-        act_stop_all.setToolTip("Stop all running messages")
-        act_stop_all.triggered.connect(self._stop_all)
-        tb.addAction(act_stop_all)
-
-        tb.addSeparator()
-
         act_reconnect = QAction("Reconnect PCAN", self)
         act_reconnect.setIcon(hmi_icon("reconnect"))
         act_reconnect.setToolTip("Reconnect selected CAN backend")

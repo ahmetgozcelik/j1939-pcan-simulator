@@ -99,6 +99,11 @@ class MessageTableModel(QAbstractTableModel):
     def headerData(self, section, orientation, role=Qt.DisplayRole):
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
             return COLS[section]
+        if role == Qt.ToolTipRole and orientation == Qt.Horizontal:
+            if section == COL_TYPE:
+                return "Derived from the J1939 PGN/CAN ID. Edit PGN Hex, PGN Dec, or CAN ID to change it."
+            if section in (COL_ID, COL_PGN, COL_PGN_DEC, COL_PRIORITY, COL_SA, COL_DA_GE):
+                return "Editable J1939 identifier field"
         return None
 
     def flags(self, index: QModelIndex):
@@ -185,7 +190,7 @@ class MessageTableModel(QAbstractTableModel):
             if col in (COL_ID, COL_PGN, COL_PGN_DEC, COL_PRIORITY, COL_SA, COL_DA_GE):
                 return "Double-click to edit J1939 identifier fields"
             if col == COL_TYPE:
-                return _category_tooltip(parsed.category)
+                return f"{_category_tooltip(parsed.category)}. Edit PGN Hex, PGN Dec, or CAN ID to change Type."
             if col == COL_DA_GE:
                 return "Destination address" if parsed.is_pdu1 else "Group extension"
             if col == COL_NAME:

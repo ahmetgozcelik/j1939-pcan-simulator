@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtGui import QDesktopServices
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -23,6 +24,7 @@ from PyQt5.QtWidgets import (
 
 from config_manager import Message
 from dm1_definitions import (
+    CONFIG_PATH,
     get_lamp,
     lamp_sequence_label,
     load_dm1_definitions,
@@ -39,6 +41,7 @@ class DM1Panel(QWidget):
         self.message: Optional[Message] = None
         self.dm1_definitions = load_dm1_definitions()
         self.lamp_checkboxes: dict[str, QCheckBox] = {}
+        self.lamp_fixed_layout: Optional[QVBoxLayout] = None
         self._loading = False
         self._build_ui()
 
@@ -65,17 +68,21 @@ class DM1Panel(QWidget):
         self.cmb_lamp_mode.currentIndexChanged.connect(self._on_lamp_mode_changed)
         lamp_mode_row.addWidget(self.cmb_lamp_mode)
         lamp_mode_row.addStretch()
+        self.btn_open_definitions = QPushButton("Definitions...")
+        self.btn_open_definitions.setToolTip(str(CONFIG_PATH))
+        self.btn_open_definitions.clicked.connect(self._open_definitions)
+        self.btn_reload_definitions = QPushButton("Reload")
+        self.btn_reload_definitions.setToolTip("Reload DM1 definitions from JSON")
+        self.btn_reload_definitions.clicked.connect(self._reload_definitions)
+        lamp_mode_row.addWidget(self.btn_open_definitions)
+        lamp_mode_row.addWidget(self.btn_reload_definitions)
         lamp_main.addLayout(lamp_mode_row)
 
         self.lamp_fixed_widget = QWidget()
-        lamp_cb_layout = QHBoxLayout(self.lamp_fixed_widget)
-        lamp_cb_layout.setContentsMargins(0, 0, 0, 0)
-        for lamp in self.dm1_definitions.lamps:
-            cb = QCheckBox(lamp.label)
-            cb.toggled.connect(self._on_changed)
-            lamp_cb_layout.addWidget(cb)
-            self.lamp_checkboxes[lamp.key] = cb
-        lamp_cb_layout.addStretch(1)
+        self.lamp_fixed_layout = QVBoxLayout(self.lamp_fixed_widget)
+        self.lamp_fixed_layout.setContentsMargins(0, 0, 0, 0)
+        self.lamp_fixed_layout.setSpacing(6)
+        self._populate_lamp_checkboxes()
         lamp_main.addWidget(self.lamp_fixed_widget)
 
         self.lamp_auto_widget = QWidget()
@@ -184,9 +191,7 @@ class DM1Panel(QWidget):
         form = QFormLayout(dtc_group)
 
         self.cmb_fmi = QComboBox()
-        for fmi in range(0, 32):
-            desc = self.dm1_definitions.fmi_descriptions.get(fmi, "Reserved")
-            self.cmb_fmi.addItem(f"{fmi} - {desc}", fmi)
+        self._populate_fmi_combo()
         self.cmb_fmi.currentIndexChanged.connect(self._on_changed)
         form.addRow("FMI:", self.cmb_fmi)
 
@@ -260,6 +265,50 @@ class DM1Panel(QWidget):
     # ------------------------------------------------------------------
     # Internal
     # ------------------------------------------------------------------
+
+    def _populate_lamp_checkboxes(self) -> None:
+        if self.lamp_fixed_layout is None:
+            return
+        while self.lamp_fixed_layout.count():
+            item = self.lamp_fixed_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.lamp_checkboxes.clear()
+        for lamp in self.dm1_definitions.lamps:
+            cb = QCheckBox(lamp.label)
+            cb.setMinimumWidth(280)
+            cb.setToolTip(f"{lamp.label} - DM1 lamp status bits {lamp.bit}..{lamp.bit + 1}")
+            cb.toggled.connect(self._on_changed)
+            self.lamp_fixed_layout.addWidget(cb)
+            self.lamp_checkboxes[lamp.key] = cb
+        self.lamp_fixed_layout.addStretch(1)
+
+    def _populate_fmi_combo(self) -> None:
+        current = self.cmb_fmi.currentData() if hasattr(self, "cmb_fmi") else 0
+        self.cmb_fmi.blockSignals(True)
+        self.cmb_fmi.clear()
+        for fmi in range(0, 32):
+            desc = self.dm1_definitions.fmi_descriptions.get(fmi, "Reserved")
+            self.cmb_fmi.addItem(f"{fmi} - {desc}", fmi)
+        idx = self.cmb_fmi.findData(current)
+        self.cmb_fmi.setCurrentIndex(idx if idx >= 0 else 0)
+        self.cmb_fmi.blockSignals(False)
+
+    def _open_definitions(self) -> None:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(CONFIG_PATH)))
+
+    def _reload_definitions(self) -> None:
+        state = self._current_state()
+        self.dm1_definitions = load_dm1_definitions()
+        self._populate_lamp_checkboxes()
+        self._populate_fmi_combo()
+        for key, checkbox in self.lamp_checkboxes.items():
+            try:
+                checkbox.setChecked(get_lamp(state.lamp_status, key, self.dm1_definitions))
+            except KeyError:
+                checkbox.setChecked(False)
+        self._on_changed()
 
     def _on_lamp_mode_changed(self) -> None:
         is_auto = self.cmb_lamp_mode.currentIndex() == 1

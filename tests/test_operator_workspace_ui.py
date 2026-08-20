@@ -52,6 +52,15 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         self.assertEqual(model.data(model.index(0, COL_DA_GE), Qt.DisplayRole), "DA 23")
         self.assertEqual(model.data(model.index(0, COL_TYPE), Qt.DisplayRole), "request")
 
+    def test_type_column_explains_that_type_is_derived_from_pgn(self):
+        panel = MessagePanel()
+        panel.set_workspace(Workspace(messages=[Message(can_id="18FECA00")]))
+
+        tooltip = panel.model.headerData(COL_TYPE, Qt.Horizontal, Qt.ToolTipRole)
+
+        self.assertIn("Derived from the J1939 PGN/CAN ID", tooltip)
+        self.assertFalse(panel.model.flags(panel.model.index(0, COL_TYPE)) & Qt.ItemIsEditable)
+
     def test_message_table_allows_editing_hex_pgn_and_rebuilds_can_id(self):
         ws = Workspace(messages=[Message(can_id="18F00480")])
         panel = MessagePanel()
