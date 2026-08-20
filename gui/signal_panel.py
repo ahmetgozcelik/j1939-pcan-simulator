@@ -26,6 +26,7 @@ from PyQt5.QtWidgets import (
 
 from config_manager import Message, Signal
 from frame_builder import physical_to_raw, raw_to_physical
+from validators import signal_bit_positions
 
 
 COL_NAME = 0
@@ -203,7 +204,13 @@ class SignalPanel(QWidget):
         msg = self.model.message()
         if msg is None:
             return
-        new_sig = Signal(name=f"Signal {len(msg.signals) + 1}")
+        byte_pos, bit_pos = _first_free_byte_aligned_layout(msg)
+        new_sig = Signal(
+            name=f"Signal {len(msg.signals) + 1}",
+            byte_pos=byte_pos,
+            bit_pos=bit_pos,
+            bit_length=8,
+        )
         self.model.beginResetModel()
         msg.signals.append(new_sig)
         self.model.endResetModel()
@@ -227,3 +234,18 @@ class SignalPanel(QWidget):
                 self.table.selectRow(min(idx, len(msg.signals) - 1))
             else:
                 self.signal_selected.emit(msg, None)
+
+
+def _first_free_byte_aligned_layout(msg: Message) -> tuple[int, int]:
+    used_bits: set[int] = set()
+    for sig in msg.signals:
+        try:
+            used_bits.update(bit for bit in signal_bit_positions(sig) if 0 <= bit < 64)
+        except Exception:
+            continue
+
+    for byte_pos in range(8):
+        bits = set(range(byte_pos * 8, byte_pos * 8 + 8))
+        if not bits & used_bits:
+            return byte_pos, 0
+    return 0, 0

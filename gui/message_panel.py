@@ -31,6 +31,7 @@ from PyQt5.QtWidgets import (
 )
 
 from config_manager import Message, Workspace, clone_message
+from j1939_id import build_can_id, format_can_id, parse_can_id
 
 
 # ---------------------------------------------------------------------------
@@ -60,6 +61,7 @@ COL_ID = 1
 COL_NAME = 2
 COL_CYCLE = 3
 COLS = ["Active", "CAN ID", "Name", "Cycle ms"]
+DEFAULT_NEW_MESSAGE_PGN = 0x00FF00
 
 
 class MessageTableModel(QAbstractTableModel):
@@ -250,7 +252,7 @@ class MessagePanel(QWidget):
 
         # Buttons row 2
         row2 = QHBoxLayout()
-        self.btn_start_all = QPushButton("Start All")
+        self.btn_start_all = QPushButton("Start Active")
         self.btn_stop_all = QPushButton("Stop All")
         self.btn_start_all.clicked.connect(self.request_start_all.emit)
         self.btn_stop_all.clicked.connect(self.request_stop_all.emit)
@@ -319,8 +321,11 @@ class MessagePanel(QWidget):
     def _add_message(self, checked = False) -> None:
         msgs = self.model.messages()
         msg = Message(
-            can_id="18FFFFFF",
-            name="New Message",
+            can_id=_suggest_unique_can_id(
+                build_can_id(priority=6, pgn=DEFAULT_NEW_MESSAGE_PGN, source_address=0),
+                _used_can_ids(msgs),
+            ),
+            name="New J1939 Message",
             cycle_ms=1000,
             active=False,
             signals=[],
@@ -340,6 +345,7 @@ class MessagePanel(QWidget):
         copy.name = msg.name + " (copy)"
         copy.active = False
         msgs = self.model.messages()
+        copy.can_id = _suggest_unique_can_id(copy.can_id, _used_can_ids(msgs))
         self.model.beginResetModel()
         msgs.append(copy)
         self.model.endResetModel()
@@ -354,6 +360,10 @@ class MessagePanel(QWidget):
         idx = rows[0].row()
         msgs = self.model.messages()
         if 0 <= idx < len(msgs):
+            msg = msgs[idx]
+            if msg.active:
+                msg.active = False
+                self.request_active_changed.emit(msg)
             self.model.beginResetModel()
             del msgs[idx]
             self.model.endResetModel()
@@ -372,3 +382,38 @@ class MessagePanel(QWidget):
         left = self.model.index(row, 0)
         right = self.model.index(row, len(COLS) - 1)
         self.model.dataChanged.emit(left, right, [Qt.DisplayRole])
+
+
+def _used_can_ids(messages: List[Message]) -> set[str]:
+    used: set[str] = set()
+    for msg in messages:
+        try:
+            used.add(format_can_id(msg.can_id))
+        except ValueError:
+            continue
+    return used
+
+
+def _suggest_unique_can_id(base_can_id: int | str, used_ids: set[str]) -> str:
+    try:
+        parsed = parse_can_id(base_can_id)
+    except ValueError:
+        parsed = parse_can_id("18FF0000")
+
+    if parsed.to_hex() not in used_ids:
+        return parsed.to_hex()
+
+    for offset in range(1, 254):
+        source_address = (parsed.source_address + offset) % 254
+        candidate = build_can_id(
+            priority=parsed.priority,
+            pgn=parsed.pgn,
+            source_address=source_address,
+            destination_address=parsed.destination_address,
+            group_extension=parsed.group_extension,
+        )
+        candidate_hex = format_can_id(candidate)
+        if candidate_hex not in used_ids:
+            return candidate_hex
+
+    return parsed.to_hex()

@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
 
         self.message_panel.message_selected.connect(self._on_message_selected)
         self.message_panel.workspace_modified.connect(self._on_workspace_modified)
-        self.message_panel.request_start_all.connect(self._start_all)
+        self.message_panel.request_start_all.connect(self._start_active)
         self.message_panel.request_stop_all.connect(self._stop_all)
         self.message_panel.request_active_changed.connect(self._on_active_changed)
         self.message_panel.request_reconnect.connect(self._reconnect)
@@ -184,8 +184,8 @@ class MainWindow(QMainWindow):
 
         tb.addSeparator()
 
-        act_start_all = QAction("Start All", self)
-        act_start_all.triggered.connect(self._start_all)
+        act_start_all = QAction("Start Active", self)
+        act_start_all.triggered.connect(self._start_active)
         tb.addAction(act_start_all)
 
         act_stop_all = QAction("Stop All", self)
@@ -396,10 +396,13 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     @safe_action
-    def _start_all(self, checked=False) -> None:
+    def _start_active(self, checked=False) -> None:
         for msg in self.workspace.messages:
-            if not self.engine.is_running(msg.can_id):
+            if msg.active and not self.engine.is_running(msg.can_id):
                 self.engine.start_message(msg)
+
+    def _start_all(self, checked=False) -> None:
+        self._start_active(checked)
 
     @safe_action
     def _stop_all(self, checked=False) -> None:
