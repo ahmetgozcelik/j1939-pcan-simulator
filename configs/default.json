@@ -169,7 +169,7 @@
     },
     {
       "can_id": "18FEEE00",
-      "name": "Oil Temp, Coolant Temp",
+      "name": "ET1 - Engine Temperature 1",
       "cycle_ms": 1000,
       "active": true,
       "signals": [
@@ -210,8 +210,8 @@
       ]
     },
     {
-      "can_id": "18F00400",
-      "name": "RPM",
+      "can_id": "18F00401",
+      "name": "EEC1 - Engine Speed (alternate source)",
       "cycle_ms": 1000,
       "active": true,
       "signals": [
@@ -236,7 +236,7 @@
     },
     {
       "can_id": "18FD0700",
-      "name": "Uyarılar",
+      "name": "EFL/P12 - Engine Fluid Level/Pressure 12",
       "cycle_ms": 1000,
       "active": false,
       "signals": [

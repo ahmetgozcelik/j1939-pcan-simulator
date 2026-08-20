@@ -195,6 +195,10 @@ class SignalDetail(QWidget):
             w.valueChanged.connect(self._on_scale_changed)
         f3.addRow("Scale:", self.spin_scale)
         f3.addRow("Offset:", self.spin_offset)
+        self.lbl_scale_error = QLabel("Scale must not be zero.")
+        self.lbl_scale_error.setStyleSheet("color: #ff6b5f;")
+        self.lbl_scale_error.setVisible(False)
+        f3.addRow("", self.lbl_scale_error)
         outer.addWidget(sc)
 
         # --- Range / Value (paired raw+phys) ---
@@ -286,6 +290,7 @@ class SignalDetail(QWidget):
             self.cmb_order.setCurrentIndex(idx if idx >= 0 else 0)
             self.spin_scale.setValue(signal.scale)
             self.spin_offset.setValue(signal.offset)
+            self._update_scale_validation()
 
             # Çiftlere scale/offset uygula sonra değerleri yükle.
             for pair in (self.pair_min, self.pair_max, self.pair_value):
@@ -353,6 +358,7 @@ class SignalDetail(QWidget):
         offset = self.spin_offset.value()
         self.signal.scale = scale
         self.signal.offset = offset
+        self._update_scale_validation()
         for pair in (self.pair_min, self.pair_max, self.pair_value):
             pair.set_scale_offset(scale, offset)
         self.signal_modified.emit()
@@ -373,6 +379,16 @@ class SignalDetail(QWidget):
             w.setVisible(saw_visible)
         for w in (self.lbl_ramp, self.spin_ramp):
             w.setVisible(ramp_visible)
+
+    def _update_scale_validation(self) -> None:
+        invalid = self.spin_scale.value() == 0
+        self.lbl_scale_error.setVisible(invalid)
+        if invalid:
+            self.spin_scale.setStyleSheet("border: 1px solid #ff6b5f;")
+            self.spin_scale.setToolTip("Scale must not be zero.")
+        else:
+            self.spin_scale.setStyleSheet("")
+            self.spin_scale.setToolTip("")
 
     def _refresh_preview(self) -> None:
         if self.message is None:
