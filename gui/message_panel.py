@@ -107,7 +107,15 @@ class MessageTableModel(QAbstractTableModel):
         col = index.column()
         if col == COL_ACTIVE:
             return base
-        if col in (COL_ID, COL_NAME, COL_CYCLE):
+        if col in (
+            COL_ID,
+            COL_PGN,
+            COL_PRIORITY,
+            COL_SA,
+            COL_DA_GE,
+            COL_NAME,
+            COL_CYCLE,
+        ):
             return base | Qt.ItemIsEditable
         return base
 
@@ -169,10 +177,14 @@ class MessageTableModel(QAbstractTableModel):
                 return "Invalid 29-bit J1939 CAN ID"
             if col == COL_ACTIVE:
                 return "Click to toggle message transmission state"
+            if col in (COL_ID, COL_PGN, COL_PRIORITY, COL_SA, COL_DA_GE):
+                return "Double-click to edit J1939 identifier fields"
             if col == COL_TYPE:
                 return _category_tooltip(parsed.category)
             if col == COL_DA_GE:
                 return "Destination address" if parsed.is_pdu1 else "Group extension"
+            if col == COL_NAME:
+                return msg.name
         return None
 
     def setData(self, index: QModelIndex, value, role=Qt.EditRole) -> bool:
@@ -190,6 +202,14 @@ class MessageTableModel(QAbstractTableModel):
                     cleaned = str(value).strip().upper().replace("0X", "").replace(" ", "")
                     int(cleaned, 16)  # validate
                     msg.can_id = cleaned
+                elif col == COL_PGN:
+                    msg.can_id = _updated_can_id(msg, pgn=_parse_number(value, 0, 0x3FFFF, base=16))
+                elif col == COL_PRIORITY:
+                    msg.can_id = _updated_can_id(msg, priority=_parse_number(value, 0, 7, base=10))
+                elif col == COL_SA:
+                    msg.can_id = _updated_can_id(msg, source_address=_parse_number(value, 0, 0xFF, base=16))
+                elif col == COL_DA_GE:
+                    msg.can_id = _updated_can_id(msg, pdu_specific=_parse_da_ge_value(value))
                 elif col == COL_NAME:
                     msg.name = str(value)
                 elif col == COL_CYCLE:
@@ -201,7 +221,9 @@ class MessageTableModel(QAbstractTableModel):
                     return False
             except ValueError:
                 return False
-            self.dataChanged.emit(index, index, [Qt.DisplayRole])
+            left = self.index(index.row(), 0)
+            right = self.index(index.row(), len(COLS) - 1)
+            self.dataChanged.emit(left, right, [Qt.DisplayRole])
             return True
         return False
 
@@ -287,16 +309,29 @@ class MessagePanel(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setMouseTracking(True)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setItemDelegate(MessageTableDelegate(COL_ACTIVE, COL_TYPE, self.table))
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(36)
         hh = self.table.horizontalHeader()
-        hh.setMinimumSectionSize(34)
-        hh.setDefaultSectionSize(88)
-        hh.setSectionResizeMode(COL_ACTIVE, QHeaderView.ResizeToContents)
-        for col in (COL_ACTIVE, COL_ID, COL_PGN, COL_PRIORITY, COL_SA, COL_DA_GE, COL_TYPE, COL_CYCLE):
-            hh.setSectionResizeMode(col, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
+        hh.setSectionsMovable(True)
+        hh.setSectionsClickable(True)
+        hh.setMinimumSectionSize(44)
+        for col, width in {
+            COL_ACTIVE: 64,
+            COL_ID: 112,
+            COL_PGN: 78,
+            COL_PRIORITY: 56,
+            COL_SA: 54,
+            COL_DA_GE: 82,
+            COL_TYPE: 112,
+            COL_NAME: 240,
+            COL_CYCLE: 92,
+        }.items():
+            hh.setSectionResizeMode(col, QHeaderView.Interactive)
+            self.table.setColumnWidth(col, width)
+        hh.setStretchLastSection(False)
         self.table.setEditTriggers(
             QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked
         )
@@ -501,6 +536,68 @@ def _parse_message_id(msg: Message):
         return parse_can_id(msg.can_id)
     except ValueError:
         return None
+
+
+def _parse_number(value, low: int, high: int, *, base: int | None = None) -> int:
+    text = str(value).strip().upper()
+    text = text.replace("0X", "").replace("PGN", "").replace("SA", "")
+    text = text.replace("PRIO", "").replace("PRIORITY", "").strip()
+    if not text:
+        raise ValueError("empty numeric value")
+    number_base = base or (16 if any(ch in "ABCDEF" for ch in text) else 10)
+    number = int(text, number_base)
+    if not low <= number <= high:
+        raise ValueError(f"value must be in {low}..{high}")
+    return number
+
+
+def _parse_da_ge_value(value) -> int:
+    text = str(value).strip().upper()
+    text = text.replace("DA", "").replace("GE", "").replace(":", "").strip()
+    return _parse_number(text, 0, 0xFF, base=16)
+
+
+def _updated_can_id(
+    msg: Message,
+    *,
+    pgn: Optional[int] = None,
+    priority: Optional[int] = None,
+    source_address: Optional[int] = None,
+    pdu_specific: Optional[int] = None,
+) -> str:
+    parsed = parse_can_id(msg.can_id)
+    new_priority = parsed.priority if priority is None else priority
+    new_pgn = parsed.pgn if pgn is None else pgn
+    new_source = parsed.source_address if source_address is None else source_address
+
+    pf = (new_pgn >> 8) & 0xFF
+    if pf < 0xF0:
+        if new_pgn & 0xFF:
+            raise ValueError("PDU1 PGNs must end with 00")
+        destination = (
+            parsed.destination_address
+            if pdu_specific is None
+            else pdu_specific
+        )
+        if destination is None:
+            destination = 0xFF
+        can_id = build_can_id(
+            priority=new_priority,
+            pgn=new_pgn,
+            source_address=new_source,
+            destination_address=destination,
+        )
+    else:
+        group_extension = pdu_specific
+        if group_extension is not None:
+            new_pgn = (new_pgn & 0x3FF00) | group_extension
+        can_id = build_can_id(
+            priority=new_priority,
+            pgn=new_pgn,
+            source_address=new_source,
+            group_extension=group_extension,
+        )
+    return format_can_id(can_id)
 
 
 def _category_label(category: PgnCategory) -> str:

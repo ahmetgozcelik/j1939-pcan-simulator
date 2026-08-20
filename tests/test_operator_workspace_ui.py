@@ -4,12 +4,22 @@ import unittest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QApplication, QHeaderView
 
 from config_manager import Message, Workspace
 from gui.log_panel import LogPanel
 from gui.main_window import validation_status_text
-from gui.message_panel import COL_DA_GE, COL_PGN, COL_PRIORITY, COL_SA, COL_TYPE, MessagePanel
+from gui.message_panel import (
+    COL_DA_GE,
+    COL_ID,
+    COL_NAME,
+    COL_PGN,
+    COL_PRIORITY,
+    COL_SA,
+    COL_TYPE,
+    MessagePanel,
+)
+from gui.signal_panel import COL_NAME as SIGNAL_COL_NAME, SignalPanel
 from gui.signal_detail import SignalDetail
 
 
@@ -39,6 +49,31 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         self.assertEqual(model.data(model.index(0, COL_PGN), Qt.DisplayRole), "0EA00")
         self.assertEqual(model.data(model.index(0, COL_DA_GE), Qt.DisplayRole), "DA 23")
         self.assertEqual(model.data(model.index(0, COL_TYPE), Qt.DisplayRole), "request")
+
+    def test_message_table_allows_editing_pgn_and_rebuilds_can_id(self):
+        ws = Workspace(messages=[Message(can_id="18F00480")])
+        panel = MessagePanel()
+        panel.set_workspace(ws)
+
+        self.assertTrue(panel.model.setData(panel.model.index(0, COL_PGN), "0FEEF"))
+
+        self.assertEqual(ws.messages[0].can_id, "18FEEF80")
+        self.assertEqual(panel.model.data(panel.model.index(0, COL_PGN), Qt.DisplayRole), "0FEEF")
+
+    def test_message_and_signal_name_columns_are_user_resizable(self):
+        msg_panel = MessagePanel()
+        self.assertEqual(
+            msg_panel.table.horizontalHeader().sectionResizeMode(COL_NAME),
+            QHeaderView.Interactive,
+        )
+        self.assertGreaterEqual(msg_panel.table.columnWidth(COL_NAME), 220)
+
+        sig_panel = SignalPanel()
+        self.assertEqual(
+            sig_panel.table.horizontalHeader().sectionResizeMode(SIGNAL_COL_NAME),
+            QHeaderView.Interactive,
+        )
+        self.assertGreaterEqual(sig_panel.table.columnWidth(SIGNAL_COL_NAME), 240)
 
     def test_log_filter_shows_only_errors_when_selected(self):
         panel = LogPanel()

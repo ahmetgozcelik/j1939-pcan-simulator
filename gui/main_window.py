@@ -18,7 +18,6 @@ from PyQt5.QtWidgets import (
     QMessageBox,
     QSplitter,
     QStackedWidget,
-    QStyle,
     QToolBar,
     QToolButton,
 )
@@ -35,6 +34,7 @@ from config_manager import (
     workspace_to_dict,
 )
 from gui.dm1_panel import DM1Panel
+from gui.icons import hmi_icon
 from gui.log_panel import LogPanel
 from gui.message_panel import MessagePanel
 from gui.signal_detail import SignalDetail
@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
     def __init__(self, reporter=None):
         super().__init__()
         self.setWindowTitle("J1939 PCAN Simulator")
-        self.resize(1500, 900)
+        self.resize(1700, 900)
 
         self._reporter = reporter
         self.workspace: Workspace = Workspace()
@@ -142,18 +142,22 @@ class MainWindow(QMainWindow):
         self.center_stack = QStackedWidget()
         self.center_stack.addWidget(self.signal_panel)  # 0
         self.center_stack.addWidget(self.dm1_panel)     # 1
-        self.message_panel.setMinimumWidth(560)
-        self.center_stack.setMinimumWidth(360)
+        self.message_panel.setMinimumWidth(620)
+        self.center_stack.setMinimumWidth(480)
         self.signal_detail.setMinimumWidth(500)
 
         self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter.setObjectName("WorkspaceSplitter")
+        self.splitter.setChildrenCollapsible(False)
+        self.splitter.setOpaqueResize(True)
+        self.splitter.setHandleWidth(10)
         self.splitter.addWidget(self.message_panel)
         self.splitter.addWidget(self.center_stack)
         self.splitter.addWidget(self.signal_detail)
         self.splitter.setStretchFactor(0, 2)
         self.splitter.setStretchFactor(1, 3)
         self.splitter.setStretchFactor(2, 3)
-        self.splitter.setSizes([620, 430, 560])
+        self.splitter.setSizes([760, 560, 620])
 
         self.setCentralWidget(self.splitter)
 
@@ -167,34 +171,34 @@ class MainWindow(QMainWindow):
     def _build_toolbar(self) -> None:
         tb = QToolBar("Main")
         tb.setObjectName("MainToolBar")
-        tb.setIconSize(QSize(18, 18))
+        tb.setIconSize(QSize(19, 19))
         tb.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
         tb.setMovable(False)
         self.addToolBar(tb)
 
         act_new = QAction("New", self)
-        act_new.setIcon(self.style().standardIcon(QStyle.SP_FileIcon))
+        act_new.setIcon(hmi_icon("new"))
         act_new.setShortcut(QKeySequence.New)
         act_new.setToolTip("New configuration")
         act_new.triggered.connect(self._action_new)
         tb.addAction(act_new)
 
         act_open = QAction("Open...", self)
-        act_open.setIcon(self.style().standardIcon(QStyle.SP_DirOpenIcon))
+        act_open.setIcon(hmi_icon("open"))
         act_open.setShortcut(QKeySequence.Open)
         act_open.setToolTip("Open configuration")
         act_open.triggered.connect(self._action_open)
         tb.addAction(act_open)
 
         act_save = QAction("Save", self)
-        act_save.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        act_save.setIcon(hmi_icon("save"))
         act_save.setShortcut(QKeySequence.Save)
         act_save.setToolTip("Save configuration")
         act_save.triggered.connect(self._action_save)
         tb.addAction(act_save)
 
         act_save_as = QAction("Save As...", self)
-        act_save_as.setIcon(self.style().standardIcon(QStyle.SP_DialogSaveButton))
+        act_save_as.setIcon(hmi_icon("save_as"))
         act_save_as.setToolTip("Save configuration as a new file")
         act_save_as.triggered.connect(self._action_save_as)
         tb.addAction(act_save_as)
@@ -202,7 +206,7 @@ class MainWindow(QMainWindow):
         # Recent menü
         self.recent_btn = QToolButton()
         self.recent_btn.setText("Recent")
-        self.recent_btn.setIcon(self.style().standardIcon(QStyle.SP_FileDialogDetailedView))
+        self.recent_btn.setIcon(hmi_icon("recent"))
         self.recent_btn.setToolTip("Open a recent configuration")
         self.recent_btn.setPopupMode(QToolButton.InstantPopup)
         self.recent_menu = QMenu(self.recent_btn)
@@ -213,13 +217,13 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         act_start_all = QAction("Start Active", self)
-        act_start_all.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        act_start_all.setIcon(hmi_icon("play"))
         act_start_all.setToolTip("Start active messages")
         act_start_all.triggered.connect(self._start_active)
         tb.addAction(act_start_all)
 
         act_stop_all = QAction("Stop All", self)
-        act_stop_all.setIcon(self.style().standardIcon(QStyle.SP_MediaStop))
+        act_stop_all.setIcon(hmi_icon("stop"))
         act_stop_all.setToolTip("Stop all running messages")
         act_stop_all.triggered.connect(self._stop_all)
         tb.addAction(act_stop_all)
@@ -227,7 +231,7 @@ class MainWindow(QMainWindow):
         tb.addSeparator()
 
         act_reconnect = QAction("Reconnect PCAN", self)
-        act_reconnect.setIcon(self.style().standardIcon(QStyle.SP_BrowserReload))
+        act_reconnect.setIcon(hmi_icon("reconnect"))
         act_reconnect.setToolTip("Reconnect selected CAN backend")
         act_reconnect.triggered.connect(self._reconnect)
         tb.addAction(act_reconnect)

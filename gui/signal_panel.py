@@ -104,6 +104,11 @@ class SignalTableModel(QAbstractTableModel):
         if role == Qt.BackgroundRole and col in (COL_RAW, COL_PHYS):
             if index.row() in self._flashed_rows:
                 return theme_color("accent-cyan", 42)
+        if role == Qt.ToolTipRole:
+            if col == COL_NAME:
+                return sig.name
+            if col in (COL_RAW, COL_PHYS):
+                return "Double-click to edit value"
         return None
 
     # Sinyal: gerçek bir kullanıcı düzenlemesi tamamlandığında.
@@ -170,17 +175,25 @@ class SignalPanel(QWidget):
         self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setAlternatingRowColors(True)
         self.table.setMouseTracking(True)
+        self.table.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.table.setItemDelegate(HmiTableDelegate(self.table))
         self.table.verticalHeader().setVisible(False)
         self.table.verticalHeader().setDefaultSectionSize(36)
         hh = self.table.horizontalHeader()
-        hh.setMinimumSectionSize(42)
+        hh.setSectionsMovable(True)
+        hh.setSectionsClickable(True)
+        hh.setMinimumSectionSize(48)
         hh.setStretchLastSection(False)
-        hh.setSectionResizeMode(COL_NAME, QHeaderView.Stretch)
-        hh.setSectionResizeMode(COL_RAW, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(COL_PHYS, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(COL_UNIT, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(COL_MODE, QHeaderView.ResizeToContents)
+        for col, width in {
+            COL_NAME: 260,
+            COL_RAW: 118,
+            COL_PHYS: 146,
+            COL_UNIT: 70,
+            COL_MODE: 82,
+        }.items():
+            hh.setSectionResizeMode(col, QHeaderView.Interactive)
+            self.table.setColumnWidth(col, width)
         self.table.setEditTriggers(
             QAbstractItemView.DoubleClicked | QAbstractItemView.SelectedClicked
         )

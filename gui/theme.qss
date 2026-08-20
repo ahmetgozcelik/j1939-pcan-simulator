@@ -54,20 +54,22 @@ QMenu::item:selected {
 }
 
 QToolBar#MainToolBar {
-    background-color: #161B22;
+    background-color: #111820;
     border-top: 1px solid rgba(255,255,255,0.08);
     border-bottom: 1px solid rgba(255,255,255,0.16);
-    spacing: 6px;
-    padding: 6px 8px;
+    spacing: 8px;
+    padding: 8px 10px;
 }
 
 QToolBar#MainToolBar QToolButton,
 QToolButton {
     background-color: #161B22;
-    border: 1px solid transparent;
+    border: 1px solid rgba(255,255,255,0.10);
     border-radius: 6px;
     color: #E6EDF3;
-    padding: 6px 9px;
+    padding: 7px 11px;
+    min-height: 24px;
+    font-weight: 650;
 }
 
 QToolBar#MainToolBar QToolButton:hover,
@@ -82,6 +84,16 @@ QToolButton:pressed {
     border-color: #4FC3F7;
 }
 
+QToolBar#MainToolBar QToolButton:checked {
+    background-color: rgba(79,195,247,0.14);
+    border-color: #4FC3F7;
+}
+
+QToolButton::menu-indicator {
+    image: none;
+    width: 0;
+}
+
 QToolBar::separator {
     background-color: rgba(255,255,255,0.16);
     width: 1px;
@@ -89,13 +101,19 @@ QToolBar::separator {
 }
 
 QSplitter::handle {
-    background-color: #161B22;
+    background-color: #1C2229;
 }
 
 QSplitter::handle:horizontal {
-    width: 6px;
+    width: 10px;
     border-left: 1px solid rgba(255,255,255,0.08);
     border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+QSplitter::handle:horizontal:hover {
+    background-color: rgba(79,195,247,0.18);
+    border-left: 1px solid #4FC3F7;
+    border-right: 1px solid #4FC3F7;
 }
 
 QDockWidget {
@@ -191,6 +209,11 @@ QHeaderView::section {
     border-right: 1px solid rgba(255,255,255,0.08);
     border-bottom: 1px solid rgba(255,255,255,0.16);
     font-weight: 700;
+}
+
+QHeaderView::section:hover {
+    background-color: #1C2229;
+    border-right: 1px solid #4FC3F7;
 }
 
 QLineEdit,
