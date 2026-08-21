@@ -48,6 +48,12 @@ The UI and protocol helpers are designed around SAE J1939 concepts:
 
 ## Preview
 
+### Live Demo
+
+![J1939 PCAN Simulator live demo](docs/media/demo.gif)
+
+[Watch the full cropped MP4 demo](docs/media/demo.mp4)
+
 | Signal workflow | Diagnostic DTC workflow |
 | --- | --- |
 | ![Signal detail and waveform](docs/screenshots/signal-detail-waveform.png) | ![Diagnostic DM panel](docs/screenshots/diagnostic-dm-panel.png) |
