@@ -3,7 +3,10 @@
 from pathlib import Path
 
 project_root = Path.cwd()
-datas = [('configs', 'configs')]
+datas = [
+    ('configs', 'configs'),
+    ('gui/theme.qss', 'gui'),
+]
 binaries = []
 pcan_basic_dll = project_root / 'PCANBasic.dll'
 
