@@ -131,6 +131,60 @@ QDockWidget::title {
     border-top: 1px solid rgba(255,255,255,0.16);
 }
 
+QPushButton#ValidationStatusButton {
+    background-color: transparent;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 5px;
+    padding: 3px 10px;
+    min-height: 20px;
+    font-weight: 700;
+}
+
+QPushButton#ValidationStatusButton[state="ok"] {
+    color: #3ADB76;
+    border-color: rgba(58,219,118,0.36);
+}
+
+QPushButton#ValidationStatusButton[state="warn"] {
+    color: #FFB000;
+    border-color: rgba(255,176,0,0.46);
+}
+
+QPushButton#ValidationStatusButton[state="error"] {
+    color: #FF3B30;
+    border-color: rgba(255,59,48,0.56);
+    background-color: rgba(255,59,48,0.08);
+}
+
+QPushButton#ValidationStatusButton:hover {
+    background-color: #1C2229;
+    border-color: #4FC3F7;
+}
+
+QLabel#ValidationSummary {
+    color: #E6EDF3;
+    background-color: #161B22;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-weight: 700;
+}
+
+QLabel#ValidationSummary[state="ok"] {
+    color: #3ADB76;
+    border-color: rgba(58,219,118,0.36);
+}
+
+QLabel#ValidationSummary[state="warn"] {
+    color: #FFB000;
+    border-color: rgba(255,176,0,0.46);
+}
+
+QLabel#ValidationSummary[state="error"] {
+    color: #FF3B30;
+    border-color: rgba(255,59,48,0.56);
+}
+
 QFrame#PanelSurface,
 QWidget#ConnectionBadge {
     background-color: #161B22;

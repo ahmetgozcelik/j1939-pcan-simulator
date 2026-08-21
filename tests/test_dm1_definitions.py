@@ -1,4 +1,7 @@
-import _bootstrap  # noqa: F401
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    from tests import _bootstrap  # noqa: F401
 import json
 import os
 import tempfile
@@ -108,6 +111,8 @@ class DM1DefinitionsTests(unittest.TestCase):
 
         self.assertEqual(panel.btn_open_definitions.text(), "Edit JSON")
         self.assertEqual(panel.btn_reload_definitions.text(), "Reload")
+        self.assertGreaterEqual(panel.btn_open_definitions.minimumWidth(), 116)
+        self.assertGreaterEqual(panel.btn_reload_definitions.minimumWidth(), 96)
         self.assertIn("Definition file:", panel.lbl_definitions_status.text())
         self.assertEqual(panel.lamp_matrix_layout.columnCount(), 3)
         for button in list(panel.lamp_checkboxes.values()) + list(panel.flash_lamp_checkboxes.values()):
@@ -132,5 +137,7 @@ class DM1DefinitionsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 

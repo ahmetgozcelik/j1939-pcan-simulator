@@ -113,6 +113,14 @@ For development tests:
 12. Check the frame log and validation status strip.
 13. Save the configuration as JSON.
 
+Panel recovery:
+
+- Use `View > Panels > Frame Log` to reopen the frame log if it is closed.
+- Use `View > Panels > Validation Issues` or click the validation status in the
+  status bar to inspect validation errors.
+- Use `View > Panels > Reset Layout` to return dock panels to the default
+  bottom layout.
+
 ## Configuration Files
 
 The app loads JSON workspaces from the `configs` directory or any user-selected

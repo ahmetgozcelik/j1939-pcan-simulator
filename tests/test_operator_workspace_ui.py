@@ -1,4 +1,7 @@
-import _bootstrap  # noqa: F401
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    from tests import _bootstrap  # noqa: F401
 import os
 import unittest
 
@@ -161,8 +164,56 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
         self.assertEqual(ok_text, "Validation: OK")
         self.assertIn("1 error", bad_text)
 
+    def test_validation_status_button_opens_validation_details(self):
+        window = MainWindow()
+        try:
+            window.workspace = Workspace(messages=[Message(can_id="3FFFFFFF")])
+            window._refresh_workspace_ui()
+            window.validation_dock.hide()
+
+            window.validation_status_btn.click()
+
+            self.assertFalse(window.validation_dock.isHidden())
+            self.assertIn("1 error", window.validation_status_btn.text())
+            self.assertEqual(window.validation_panel.table.rowCount(), 1)
+            self.assertIn(
+                "invalid_can_id",
+                window.validation_panel.table.item(0, 3).text(),
+            )
+        finally:
+            window.pcan.shutdown()
+            window.io_worker.shutdown()
+            window.close()
+
+    def test_view_menu_and_reset_layout_restore_closed_docks(self):
+        window = MainWindow()
+        try:
+            window.log_dock.hide()
+            window.validation_dock.hide()
+
+            window.act_show_log.trigger()
+            window.act_show_validation.trigger()
+
+            self.assertFalse(window.log_dock.isHidden())
+            self.assertFalse(window.validation_dock.isHidden())
+
+            window.log_dock.setFloating(True)
+            window.validation_dock.setFloating(True)
+            window._reset_layout()
+
+            self.assertFalse(window.log_dock.isFloating())
+            self.assertFalse(window.validation_dock.isFloating())
+            self.assertFalse(window.log_dock.isHidden())
+            self.assertFalse(window.validation_dock.isHidden())
+        finally:
+            window.pcan.shutdown()
+            window.io_worker.shutdown()
+            window.close()
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 

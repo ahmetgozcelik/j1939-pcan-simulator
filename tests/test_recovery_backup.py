@@ -1,4 +1,7 @@
-import _bootstrap  # noqa: F401
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    from tests import _bootstrap  # noqa: F401
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,5 +52,7 @@ class RecoveryBackupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 

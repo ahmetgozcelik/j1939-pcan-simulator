@@ -16,6 +16,7 @@ from PyQt5.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QPushButton,
     QScrollArea,
     QSplitter,
     QStackedWidget,
@@ -40,6 +41,7 @@ from j1939_pcan_simulator.gui.log_panel import LogPanel
 from j1939_pcan_simulator.gui.message_panel import MessagePanel
 from j1939_pcan_simulator.gui.signal_detail import SignalDetail
 from j1939_pcan_simulator.gui.signal_panel import SignalPanel
+from j1939_pcan_simulator.gui.validation_panel import ValidationPanel
 from j1939_pcan_simulator.simulation.engine import DM1State, SimulatorEngine
 from j1939_pcan_simulator.validation.workspace import validate_workspace
 
@@ -93,7 +95,9 @@ class MainWindow(QMainWindow):
         self.io_worker.start()
 
         self._build_panels()
+        self._build_menus()
         self._build_toolbar()
+        self._build_status_bar()
         self._apply_adapter_settings_to_ui()
         self._refresh_validation_status()
 
@@ -176,6 +180,36 @@ class MainWindow(QMainWindow):
         self.log_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
         self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock)
 
+        self.validation_panel = ValidationPanel()
+        self.validation_dock = QDockWidget("Validation", self)
+        self.validation_dock.setObjectName("ValidationDock")
+        self.validation_dock.setWidget(self.validation_panel)
+        self.validation_dock.setAllowedAreas(Qt.BottomDockWidgetArea | Qt.TopDockWidgetArea)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.validation_dock)
+        self.tabifyDockWidget(self.log_dock, self.validation_dock)
+        self.log_dock.raise_()
+
+    def _build_menus(self) -> None:
+        self.view_menu = self.menuBar().addMenu("View")
+        self.panels_menu = self.view_menu.addMenu("Panels")
+
+        self.act_show_log = self.log_dock.toggleViewAction()
+        self.act_show_log.setText("Frame Log")
+        self.act_show_log.setToolTip("Show the frame log panel")
+        self.panels_menu.addAction(self.act_show_log)
+
+        self.act_show_validation = self.validation_dock.toggleViewAction()
+        self.act_show_validation.setText("Validation Issues")
+        self.act_show_validation.setToolTip("Show workspace validation details")
+        self.panels_menu.addAction(self.act_show_validation)
+
+        self.panels_menu.addSeparator()
+        self.act_reset_layout = QAction("Reset Layout", self)
+        self.act_reset_layout.setToolTip("Restore the default panel layout")
+        self.act_reset_layout.triggered.connect(self._reset_layout)
+        self.panels_menu.addAction(self.act_reset_layout)
+        self.view_menu.addAction(self.act_reset_layout)
+
     def _build_toolbar(self) -> None:
         tb = QToolBar("Main")
         tb.setObjectName("MainToolBar")
@@ -222,6 +256,14 @@ class MainWindow(QMainWindow):
         tb.addWidget(self.recent_btn)
         self._rebuild_recent_menu()
 
+        self.panels_btn = QToolButton()
+        self.panels_btn.setText("Panels")
+        self.panels_btn.setIcon(hmi_icon("recent"))
+        self.panels_btn.setToolTip("Show, hide, or reset dock panels")
+        self.panels_btn.setPopupMode(QToolButton.InstantPopup)
+        self.panels_btn.setMenu(self.panels_menu)
+        tb.addWidget(self.panels_btn)
+
         tb.addSeparator()
 
         act_reconnect = QAction("Reconnect PCAN", self)
@@ -230,12 +272,39 @@ class MainWindow(QMainWindow):
         act_reconnect.triggered.connect(self._reconnect)
         tb.addAction(act_reconnect)
 
+    def _build_status_bar(self) -> None:
+        self.validation_status_btn = QPushButton("Validation: OK")
+        self.validation_status_btn.setObjectName("ValidationStatusButton")
+        self.validation_status_btn.setFlat(True)
+        self.validation_status_btn.setToolTip("Show validation details")
+        self.validation_status_btn.clicked.connect(self._show_validation_dock)
+        self.statusBar().addPermanentWidget(self.validation_status_btn, 1)
+
     def _rebuild_recent_menu(self) -> None:
         self.recent_menu.clear()
         for p in cfg.get_recent_files():
             act = QAction(p, self)
             act.triggered.connect(lambda checked=False, path=p: self._open_path(path))
             self.recent_menu.addAction(act)
+
+    def _show_dock(self, dock: QDockWidget) -> None:
+        dock.setFloating(False)
+        dock.show()
+        dock.raise_()
+
+    def _show_validation_dock(self) -> None:
+        self._show_dock(self.validation_dock)
+
+    def _reset_layout(self) -> None:
+        self.log_dock.setFloating(False)
+        self.validation_dock.setFloating(False)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.log_dock)
+        self.addDockWidget(Qt.BottomDockWidgetArea, self.validation_dock)
+        self.tabifyDockWidget(self.log_dock, self.validation_dock)
+        self.log_dock.show()
+        self.validation_dock.show()
+        self.log_dock.raise_()
+        self.splitter.setSizes([760, 560, 620])
 
     # ------------------------------------------------------------------
     # DM state <-> workspace synchronization.
@@ -519,7 +588,17 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(title)
 
     def _refresh_validation_status(self) -> None:
-        self.statusBar().showMessage(validation_status_text(self.workspace))
+        issues = validate_workspace(self.workspace)
+        text = validation_status_text(self.workspace)
+        self.validation_panel.set_issues(self.workspace, issues)
+        self.validation_status_btn.setText(text)
+        errors = sum(1 for issue in issues if issue.severity == "error")
+        warnings = sum(1 for issue in issues if issue.severity == "warning")
+        state = "error" if errors else "warn" if warnings else "ok"
+        self.validation_status_btn.setProperty("state", state)
+        self.validation_status_btn.style().unpolish(self.validation_status_btn)
+        self.validation_status_btn.style().polish(self.validation_status_btn)
+        self.statusBar().showMessage("")
 
     def _kickoff_initial_load(self) -> None:
         last = cfg.get_last_config_path()

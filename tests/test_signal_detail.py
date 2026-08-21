@@ -1,4 +1,7 @@
-import _bootstrap  # noqa: F401
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    from tests import _bootstrap  # noqa: F401
 import os
 import unittest
 
@@ -40,5 +43,7 @@ class SignalDetailValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 

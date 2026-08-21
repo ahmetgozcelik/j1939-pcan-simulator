@@ -1,4 +1,7 @@
-import _bootstrap  # noqa: F401
+try:
+    import _bootstrap  # noqa: F401
+except ModuleNotFoundError:
+    from tests import _bootstrap  # noqa: F401
 import unittest
 
 from j1939_pcan_simulator.config.workspace import Message, Signal, Workspace, default_workspace
@@ -75,5 +78,7 @@ class WorkspaceValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
