@@ -6,6 +6,8 @@ USB adapters or a software-only virtual CAN backend.
 TR: PEAK PCAN USB veya sanal CAN backend uzerinden yapilandirilabilir SAE J1939
 mesajlari gonderen masaustu simulator.
 
+![J1939 PCAN Simulator overview](docs/screenshots/overview-connected.png)
+
 ## Status
 
 This project is an operator-oriented J1939 test bench. It is useful for ECU, PLC,
@@ -21,6 +23,16 @@ The UI and protocol helpers are designed around SAE J1939 concepts:
 - 8-byte single-frame J1939 messages
 - DM1 and DM2 diagnostic DTC simulation panels
 - PEAK PCAN and virtual python-can backends
+
+## Preview
+
+| Signal workflow | Diagnostic DTC workflow |
+| --- | --- |
+| ![Signal detail and waveform](docs/screenshots/signal-detail-waveform.png) | ![Diagnostic DM panel](docs/screenshots/diagnostic-dm-panel.png) |
+
+| Live frame log |
+| --- |
+| ![Frame log](docs/screenshots/frame-log.png) |
 
 ## SAE J1939 Scope
 
@@ -136,6 +148,44 @@ User state is stored outside the repository:
 
 - Recent files and adapter settings: `%USERPROFILE%\.j1939_simulator`
 - Recovery backups: `%USERPROFILE%\.j1939_simulator\recovery`
+
+## Architecture
+
+```mermaid
+flowchart LR
+    user[Operator] --> gui[PyQt HMI]
+    gui --> config[Workspace JSON]
+    gui --> validation[Validation Rules]
+    gui --> sim[Simulation Engine]
+    config --> protocol[J1939 Protocol Helpers]
+    validation --> protocol
+    sim --> protocol
+    protocol --> frame[8-byte J1939 Frames]
+    frame --> transport{CAN Backend}
+    transport --> pcan[PEAK PCAN-Basic]
+    transport --> virtual[Virtual CAN]
+    pcan --> bus[Physical CAN Bus]
+    virtual --> preview[Offline Preview / Smoke Tests]
+```
+
+```mermaid
+flowchart TD
+    workspace[Workspace JSON] --> messages[Messages]
+    messages --> id[29-bit CAN ID Parser]
+    id --> pgn[PGN / Priority / SA / DA-GE]
+    messages --> signals[SPN-like Signal Definitions]
+    signals --> packer[Raw / Physical Conversion + Bit Packing]
+    messages --> dm[DM Diagnostic Config]
+    dm --> lamps[Lamp Status / Flash Lamps]
+    dm --> dtc[SPN / FMI / Occurrence]
+    pgn --> validator[Workspace Validator]
+    packer --> validator
+    lamps --> frame_builder[Frame Builder]
+    dtc --> frame_builder
+    packer --> frame_builder
+    frame_builder --> tx[Timed TX Loop]
+    tx --> log[Frame Log + Validation Status]
+```
 
 ## Project Structure
 
