@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QHeaderView, QScrollArea
 
-from j1939_pcan_simulator.config.workspace import Message, Workspace
+from j1939_pcan_simulator.config.workspace import Message, Signal, Workspace
 from j1939_pcan_simulator.gui.log_panel import LogPanel
 from j1939_pcan_simulator.gui.main_window import MainWindow, validation_status_text
 from j1939_pcan_simulator.gui.message_panel import (
@@ -180,6 +180,65 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
                 "invalid_can_id",
                 window.validation_panel.table.item(0, 3).text(),
             )
+        finally:
+            window.pcan.shutdown()
+            window.io_worker.shutdown()
+            window.close()
+
+    def test_validation_panel_shows_full_selected_issue_detail(self):
+        signal = Signal(
+            name="Engine Torque Mode",
+            bit_length=4,
+            raw_min=3,
+            raw_max=15,
+            raw_value=1,
+        )
+        window = MainWindow()
+        try:
+            window.workspace = Workspace(messages=[
+                Message(
+                    can_id="18F00480",
+                    name="EEC1 - Electronic Engine Controller 1",
+                    signals=[signal],
+                )
+            ])
+            window._refresh_workspace_ui()
+
+            window.validation_panel.table.selectRow(0)
+            detail = window.validation_panel.detail.toPlainText()
+
+            self.assertIn("Engine Torque Mode", detail)
+            self.assertIn("raw_value_out_of_range", detail)
+            self.assertIn("Current raw value must be between raw min and raw max", detail)
+        finally:
+            window.pcan.shutdown()
+            window.io_worker.shutdown()
+            window.close()
+
+    def test_validation_issue_activation_focuses_related_signal(self):
+        signal = Signal(
+            name="Engine Torque Mode",
+            bit_length=4,
+            raw_min=3,
+            raw_max=15,
+            raw_value=1,
+        )
+        message = Message(
+            can_id="18F00480",
+            name="EEC1 - Electronic Engine Controller 1",
+            signals=[signal],
+        )
+        window = MainWindow()
+        try:
+            window.workspace = Workspace(messages=[message])
+            window._refresh_workspace_ui()
+            issue = window.validation_panel.table.item(0, 0).data(Qt.UserRole)
+
+            window._focus_validation_issue(issue)
+
+            self.assertIs(window.message_panel.selected_message(), message)
+            self.assertEqual(window.signal_panel.table.selectionModel().selectedRows()[0].row(), 0)
+            self.assertIs(window.signal_detail.signal, signal)
         finally:
             window.pcan.shutdown()
             window.io_worker.shutdown()

@@ -43,7 +43,7 @@ from j1939_pcan_simulator.gui.signal_detail import SignalDetail
 from j1939_pcan_simulator.gui.signal_panel import SignalPanel
 from j1939_pcan_simulator.gui.validation_panel import ValidationPanel
 from j1939_pcan_simulator.simulation.engine import DM1State, SimulatorEngine
-from j1939_pcan_simulator.validation.workspace import validate_workspace
+from j1939_pcan_simulator.validation.workspace import ValidationIssue, validate_workspace
 
 
 def safe_action(fn):
@@ -125,6 +125,7 @@ class MainWindow(QMainWindow):
         self.signal_panel.message_modified.connect(self._on_workspace_modified)
 
         self.signal_detail.signal_modified.connect(self._on_signal_detail_changed)
+        self.validation_panel.issue_activated.connect(self._focus_validation_issue)
 
         self._kickoff_initial_load()
         self.pcan.request_connect.emit()
@@ -554,6 +555,29 @@ class MainWindow(QMainWindow):
     @safe_action
     def _on_signal_selected(self, msg, sig) -> None:
         self.signal_detail.set_signal(msg, sig)
+
+    @safe_action
+    def _focus_validation_issue(self, issue: ValidationIssue) -> None:
+        self._show_validation_dock()
+        if issue.message_index is None:
+            return
+        if not (0 <= issue.message_index < len(self.workspace.messages)):
+            return
+
+        self.message_panel.table.selectRow(issue.message_index)
+        self.message_panel.table.scrollTo(self.message_panel.model.index(issue.message_index, 0))
+        msg = self.workspace.messages[issue.message_index]
+        self._on_message_selected(msg)
+
+        if issue.signal_index is None or msg.is_diagnostic_dtc():
+            return
+        if not (0 <= issue.signal_index < len(msg.signals)):
+            return
+
+        self.center_stack.setCurrentWidget(self.signal_panel)
+        self.signal_panel.table.selectRow(issue.signal_index)
+        self.signal_panel.table.scrollTo(self.signal_panel.model.index(issue.signal_index, 0))
+        self.signal_detail.set_signal(msg, msg.signals[issue.signal_index])
 
     @safe_action
     def _on_signal_detail_changed(self) -> None:

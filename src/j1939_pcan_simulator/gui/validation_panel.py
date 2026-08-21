@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QLabel,
+    QPlainTextEdit,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -29,6 +30,8 @@ COLS = ["Severity", "Location", "Field", "Code", "Message"]
 
 
 class ValidationPanel(QWidget):
+    issue_activated = pyqtSignal(object)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build_ui()
@@ -57,7 +60,16 @@ class ValidationPanel(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(COL_FIELD, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(COL_CODE, QHeaderView.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(COL_MESSAGE, QHeaderView.Stretch)
+        self.table.itemDoubleClicked.connect(self._emit_issue_activated)
+        self.table.selectionModel().selectionChanged.connect(self._update_detail_from_selection)
         layout.addWidget(self.table)
+
+        self.detail = QPlainTextEdit()
+        self.detail.setObjectName("ValidationDetail")
+        self.detail.setReadOnly(True)
+        self.detail.setMaximumHeight(92)
+        self.detail.setPlainText("Select an issue to inspect full details.")
+        layout.addWidget(self.detail)
 
     def set_issues(self, workspace: Workspace, issues: Iterable[ValidationIssue]) -> None:
         issue_list = list(issues)
@@ -74,6 +86,7 @@ class ValidationPanel(QWidget):
 
         self.table.setRowCount(len(issue_list))
         self.table.setVisible(bool(issue_list))
+        self.detail.setVisible(bool(issue_list))
         for row, issue in enumerate(issue_list):
             values = [
                 issue.severity.upper(),
@@ -93,6 +106,42 @@ class ValidationPanel(QWidget):
                 if col == COL_SEVERITY:
                     item.setData(Qt.UserRole + 1, issue.severity)
                 self.table.setItem(row, col, item)
+        if issue_list:
+            self.table.selectRow(0)
+            self._set_detail_from_row(0)
+        else:
+            self.detail.setPlainText("Validation OK")
+
+    def _emit_issue_activated(self, item: QTableWidgetItem) -> None:
+        issue = item.data(Qt.UserRole)
+        if issue is not None:
+            self.issue_activated.emit(issue)
+
+    def _update_detail_from_selection(self, *_args) -> None:
+        rows = self.table.selectionModel().selectedRows()
+        if rows:
+            self._set_detail_from_row(rows[0].row())
+
+    def _set_detail_from_row(self, row: int) -> None:
+        if not (0 <= row < self.table.rowCount()):
+            self.detail.setPlainText("Select an issue to inspect full details.")
+            return
+        severity = self._cell_text(row, COL_SEVERITY)
+        location = self._cell_text(row, COL_LOCATION)
+        field = self._cell_text(row, COL_FIELD)
+        code = self._cell_text(row, COL_CODE)
+        message = self._cell_text(row, COL_MESSAGE)
+        self.detail.setPlainText(
+            f"Severity: {severity}\n"
+            f"Location: {location}\n"
+            f"Field: {field}\n"
+            f"Code: {code}\n"
+            f"Message: {message}"
+        )
+
+    def _cell_text(self, row: int, col: int) -> str:
+        item = self.table.item(row, col)
+        return item.text() if item is not None else ""
 
     def _location_text(self, workspace: Workspace, issue: ValidationIssue) -> str:
         if issue.message_index is None:
@@ -111,4 +160,3 @@ class ValidationPanel(QWidget):
             return f"{base} / Signal {sig_number}"
         signal = message.signals[issue.signal_index]
         return f"{base} / Signal {sig_number}: {signal.name}"
-

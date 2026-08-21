@@ -473,6 +473,15 @@ QPlainTextEdit {
     border-radius: 6px;
 }
 
+QPlainTextEdit#ValidationDetail {
+    background-color: #161B22;
+    color: #E6EDF3;
+    border: 1px solid rgba(79,195,247,0.20);
+    padding: 6px 8px;
+    font-family: "JetBrains Mono", "Consolas", "Cascadia Code";
+    font-size: 9.5pt;
+}
+
 QListWidget {
     background-color: #0D1117;
     color: #E6EDF3;
