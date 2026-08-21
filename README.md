@@ -202,20 +202,77 @@ Supported diagnostic SPN modes:
 - `list`
 - `random_range`
 
-## Release Packaging Notes
+## Build EXE
 
-The source application is the primary supported workflow at this stage. EXE
-release packaging is handled separately so driver/runtime redistribution can be
-checked carefully.
+Install PyInstaller in the virtual environment:
 
-Packaging requirements for a future release:
+```powershell
+.venv\Scripts\activate
+pip install pyinstaller
+pyinstaller --clean --noconfirm J1939_Simulator.spec
+```
+
+Expected output:
+
+```text
+dist\J1939_Simulator.exe
+```
+
+Packaging notes:
 
 - `configs` must be bundled with the executable.
 - `can.interfaces.pcan` and `can.interfaces.virtual` must be available.
 - The PEAK driver/runtime should be installed on the target Windows machine.
-- Bundling `PCANBasic.dll` requires an explicit license/redistribution decision.
-- A clean Windows smoke test should be run with and without a connected PEAK
-  adapter before publishing the EXE.
+- `J1939_Simulator.spec` includes `PCANBasic.dll` only when that file exists next
+  to the spec file.
+- If `PCANBasic.dll` is not bundled, install the PEAK PCAN-Basic runtime on the
+  target machine.
+- Do not publish `PCANBasic.dll` in this repository unless PEAK's redistribution
+  terms have been explicitly checked.
+
+## Release Checklist
+
+Before publishing a GitHub Release:
+
+1. Run tests:
+
+   ```powershell
+   .venv\Scripts\python.exe -m unittest discover -s tests
+   .venv\Scripts\python.exe -m compileall main.py can_interface.py config_manager.py frame_builder.py simulator_engine.py gui tests
+   ```
+
+2. Build the EXE:
+
+   ```powershell
+   pyinstaller --clean --noconfirm J1939_Simulator.spec
+   ```
+
+3. Smoke test without PCAN hardware:
+   - Start `dist\J1939_Simulator.exe`.
+   - Confirm the app opens even if PCAN is disconnected.
+   - Select `Virtual` backend.
+   - Click `Reconnect`.
+   - Open `configs\default.json`.
+   - Start and stop an active message.
+   - Confirm the frame log updates and validation status is visible.
+
+4. Smoke test with PCAN hardware:
+   - Install the PEAK PCAN-Basic runtime.
+   - Connect the PEAK PCAN USB adapter.
+   - Select `PCAN`, `PCAN_USBBUS1`, and the correct bitrate.
+   - Click `Reconnect`.
+   - Send one known test frame and confirm it on the target bus or PCAN-View.
+
+5. Publish the release:
+
+   ```powershell
+   git tag v1.0.0
+   git push origin main
+   git push origin v1.0.0
+   gh release create v1.0.0 dist\J1939_Simulator.exe --title "J1939 PCAN Simulator v1.0.0" --notes-file RELEASE_NOTES.md
+   ```
+
+Use a different tag if the release version has changed.
 
 ## Troubleshooting
 
