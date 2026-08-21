@@ -1,3 +1,4 @@
+import _bootstrap  # noqa: F401
 import json
 import os
 import tempfile
@@ -8,14 +9,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication, QAbstractButton, QGroupBox, QLabel, QToolButton
 
-from dm1_definitions import (
+from j1939_pcan_simulator.protocol.dm_definitions import (
     build_lamp_status,
     get_lamp,
     load_dm1_definitions,
     set_lamp,
 )
-from gui.dm1_panel import DM1Panel
-from simulator_engine import DM1State
+from j1939_pcan_simulator.gui.dm1_panel import DM1Panel
+from j1939_pcan_simulator.simulation.engine import DM1State
 
 
 class FakeEngine:
@@ -131,3 +132,5 @@ class DM1DefinitionsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

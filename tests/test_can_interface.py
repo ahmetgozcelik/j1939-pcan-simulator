@@ -1,6 +1,7 @@
+import _bootstrap  # noqa: F401
 import unittest
 
-from can_interface import build_bus_kwargs, connection_info, normalize_backend
+from j1939_pcan_simulator.transport.can_bus import build_bus_kwargs, connection_info, normalize_backend
 
 
 class CanInterfaceSettingsTests(unittest.TestCase):
@@ -30,3 +31,5 @@ class CanInterfaceSettingsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

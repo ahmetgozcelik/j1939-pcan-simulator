@@ -1,3 +1,4 @@
+import _bootstrap  # noqa: F401
 import os
 import unittest
 
@@ -5,8 +6,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication
 
-from config_manager import Message, Signal
-from gui.signal_detail import SignalDetail
+from j1939_pcan_simulator.config.workspace import Message, Signal
+from j1939_pcan_simulator.gui.signal_detail import SignalDetail
 
 
 class SignalDetailValidationTests(unittest.TestCase):
@@ -39,3 +40,5 @@ class SignalDetailValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "j1939-pcan-simulator"
+version = "1.0.1"
+description = "Desktop SAE J1939 PCAN simulator with editable JSON workspaces."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Ahmet Gozcelik" }
+]
+dependencies = [
+  "PyQt5>=5.15",
+  "python-can>=4.3"
+]
+
+[project.scripts]
+j1939-pcan-simulator = "j1939_pcan_simulator.app.main:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"j1939_pcan_simulator.gui" = ["theme.qss"]
+

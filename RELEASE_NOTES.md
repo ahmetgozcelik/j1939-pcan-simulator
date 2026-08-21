@@ -32,7 +32,7 @@ Initial public release candidate for the SAE J1939 PCAN simulator.
 - The included PGN/SPN examples are starter definitions, not a complete SAE
   Digital Annex database.
 - PCAN hardware transmission must be verified on the target Windows machine.
-- `PCANBasic.dll` is not redistributed in the public repository unless its
+- `PCANBasic.dll` is not redistributed in the repository unless its
   license/redistribution terms are explicitly checked.
 
 ## Smoke Test

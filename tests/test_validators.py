@@ -1,7 +1,8 @@
+import _bootstrap  # noqa: F401
 import unittest
 
-from config_manager import Message, Signal, Workspace, default_workspace
-from validators import has_errors, signal_bit_positions, validate_signal, validate_workspace
+from j1939_pcan_simulator.config.workspace import Message, Signal, Workspace, default_workspace
+from j1939_pcan_simulator.validation.workspace import has_errors, signal_bit_positions, validate_signal, validate_workspace
 
 
 class WorkspaceValidationTests(unittest.TestCase):
@@ -74,3 +75,5 @@ class WorkspaceValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

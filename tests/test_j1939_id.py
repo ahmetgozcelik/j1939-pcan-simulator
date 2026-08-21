@@ -1,7 +1,8 @@
+import _bootstrap  # noqa: F401
 import unittest
 
-from config_manager import Message
-from j1939_id import (
+from j1939_pcan_simulator.config.workspace import Message
+from j1939_pcan_simulator.protocol.identifier import (
     PGN_DM1,
     PGN_DM2,
     PGN_PROPRIETARY_A,
@@ -90,3 +91,5 @@ class J1939IdTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

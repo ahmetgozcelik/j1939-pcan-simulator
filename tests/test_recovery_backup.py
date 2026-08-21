@@ -1,10 +1,11 @@
+import _bootstrap  # noqa: F401
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import config_manager as cfg
-from config_manager import Message, Workspace, load, save_recovery_backup
+from j1939_pcan_simulator.config import workspace as cfg
+from j1939_pcan_simulator.config.workspace import Message, Workspace, load, save_recovery_backup
 
 
 class RecoveryBackupTests(unittest.TestCase):
@@ -48,3 +49,5 @@ class RecoveryBackupTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

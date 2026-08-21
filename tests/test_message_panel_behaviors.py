@@ -1,3 +1,4 @@
+import _bootstrap  # noqa: F401
 import os
 import unittest
 
@@ -5,10 +6,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt5.QtWidgets import QApplication
 
-from config_manager import Message, Signal, Workspace
-from gui.log_panel import LogPanel
-from gui.message_panel import MessagePanel
-from gui.signal_panel import SignalPanel
+from j1939_pcan_simulator.config.workspace import Message, Signal, Workspace
+from j1939_pcan_simulator.gui.log_panel import LogPanel
+from j1939_pcan_simulator.gui.message_panel import MessagePanel
+from j1939_pcan_simulator.gui.signal_panel import SignalPanel
 
 
 class MessagePanelBehaviorTests(unittest.TestCase):
@@ -87,3 +88,5 @@ class MessagePanelBehaviorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

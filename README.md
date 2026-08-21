@@ -63,7 +63,7 @@ For real CAN bus transmission:
 Important notes:
 
 - `PCANBasic.dll` is supplied by the PEAK PCAN-Basic installation.
-- The public repository should not include `PCANBasic.dll` unless its license and
+- This repository should not include `PCANBasic.dll` unless its license and
   redistribution terms are explicitly checked.
 - If the PEAK driver is not installed, the app should still open and can be used
   in `virtual` backend mode for offline preview and UI testing.
@@ -79,11 +79,18 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Optional editable install for development:
+
+```powershell
+pip install -e .
+j1939-pcan-simulator
+```
+
 For development tests:
 
 ```powershell
 .venv\Scripts\python.exe -m unittest discover -s tests
-.venv\Scripts\python.exe -m compileall main.py can_interface.py config_manager.py frame_builder.py simulator_engine.py gui tests
+.venv\Scripts\python.exe -m compileall main.py src tests
 ```
 
 ## Basic Usage
@@ -121,6 +128,22 @@ User state is stored outside the repository:
 
 - Recent files and adapter settings: `%USERPROFILE%\.j1939_simulator`
 - Recovery backups: `%USERPROFILE%\.j1939_simulator\recovery`
+
+## Project Structure
+
+```text
+src/j1939_pcan_simulator/
+  app/          application startup, resource paths, error reporting
+  config/       workspace models, JSON IO, recovery, adapter settings
+  protocol/     SAE J1939 identifiers, frame packing, DM definitions
+  transport/    PCAN and virtual CAN backend integration
+  simulation/   timers, signal value generation, transmit engine
+  validation/   workspace and signal validation rules
+  gui/          PyQt widgets, delegates, icons, HMI theme
+tests/          protocol, config, UI, and packaging smoke tests
+configs/        editable example workspaces and DM definitions
+docs/           architecture and release documentation
+```
 
 ## Workspace JSON Schema
 
@@ -238,7 +261,7 @@ Before publishing a GitHub Release:
 
    ```powershell
    .venv\Scripts\python.exe -m unittest discover -s tests
-   .venv\Scripts\python.exe -m compileall main.py can_interface.py config_manager.py frame_builder.py simulator_engine.py gui tests
+   .venv\Scripts\python.exe -m compileall main.py src tests
    ```
 
 2. Build the EXE:
@@ -266,10 +289,10 @@ Before publishing a GitHub Release:
 5. Publish the release:
 
    ```powershell
-   git tag v1.0.0
+   git tag v1.0.1
    git push origin main
-   git push origin v1.0.0
-   gh release create v1.0.0 dist\J1939_Simulator.exe --title "J1939 PCAN Simulator v1.0.0" --notes-file RELEASE_NOTES.md
+   git push origin v1.0.1
+   gh release create v1.0.1 dist\J1939_Simulator.exe --title "J1939 PCAN Simulator v1.0.1" --notes-file RELEASE_NOTES.md
    ```
 
 Use a different tag if the release version has changed.

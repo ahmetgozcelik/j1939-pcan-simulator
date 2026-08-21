@@ -1,34 +1,16 @@
-"""Uygulama giriş noktası."""
+"""Thin launcher for the J1939 PCAN Simulator."""
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QApplication
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
 
-from error_reporter import get_reporter, install_global_excepthook
-from gui.main_window import MainWindow
-from gui.theme import apply_hmi_theme, apply_windows_dark_title_bar
-
-
-def main() -> int:
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-
-    app = QApplication(sys.argv)
-    app.setApplicationName("J1939 PCAN Simulator")
-    apply_hmi_theme(app)
-
-    # Hata raporlayıcı önce kurulsun, MainWindow init sırasında oluşan
-    # potansiyel hatalar bile log paneline akabilsin.
-    reporter = get_reporter()
-    install_global_excepthook(reporter)
-
-    win = MainWindow(reporter=reporter)
-    win.show()
-    apply_windows_dark_title_bar(win)
-    return app.exec_()
+from j1939_pcan_simulator.app.main import main
 
 
 if __name__ == "__main__":

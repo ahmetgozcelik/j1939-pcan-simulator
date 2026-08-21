@@ -1,7 +1,8 @@
+import _bootstrap  # noqa: F401
 import unittest
 
-from config_manager import Message, Signal
-from frame_builder import (
+from j1939_pcan_simulator.config.workspace import Message, Signal
+from j1939_pcan_simulator.protocol.frame_builder import (
     DiagnosticTroubleCode,
     build_dm1_frame,
     build_dm1_frame_from_dtcs,
@@ -84,3 +85,5 @@ class FrameBuilderTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+

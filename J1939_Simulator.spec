@@ -5,7 +5,7 @@ from pathlib import Path
 project_root = Path.cwd()
 datas = [
     ('configs', 'configs'),
-    ('gui/theme.qss', 'gui'),
+    ('src/j1939_pcan_simulator/gui/theme.qss', 'j1939_pcan_simulator/gui'),
 ]
 binaries = []
 pcan_basic_dll = project_root / 'PCANBasic.dll'
@@ -16,7 +16,7 @@ if pcan_basic_dll.exists():
 
 a = Analysis(
     ['main.py'],
-    pathex=[],
+    pathex=[str(project_root / 'src')],
     binaries=binaries,
     datas=datas,
     hiddenimports=[

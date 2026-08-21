@@ -1,3 +1,4 @@
+import _bootstrap  # noqa: F401
 import os
 import unittest
 
@@ -6,10 +7,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QHeaderView, QScrollArea
 
-from config_manager import Message, Workspace
-from gui.log_panel import LogPanel
-from gui.main_window import MainWindow, validation_status_text
-from gui.message_panel import (
+from j1939_pcan_simulator.config.workspace import Message, Workspace
+from j1939_pcan_simulator.gui.log_panel import LogPanel
+from j1939_pcan_simulator.gui.main_window import MainWindow, validation_status_text
+from j1939_pcan_simulator.gui.message_panel import (
     COL_DA_GE,
     COL_ID,
     COL_NAME,
@@ -20,8 +21,8 @@ from gui.message_panel import (
     COL_TYPE,
     MessagePanel,
 )
-from gui.signal_panel import COL_NAME as SIGNAL_COL_NAME, SignalPanel
-from gui.signal_detail import SignalDetail
+from j1939_pcan_simulator.gui.signal_panel import COL_NAME as SIGNAL_COL_NAME, SignalPanel
+from j1939_pcan_simulator.gui.signal_detail import SignalDetail
 
 
 class OperatorWorkspaceUiTests(unittest.TestCase):
@@ -163,3 +164,5 @@ class OperatorWorkspaceUiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
