@@ -409,6 +409,22 @@ For pull requests:
 
 ## Troubleshooting
 
+### Windows SmartScreen shows unknown publisher
+
+The packaged EXE is currently unsigned. Windows Defender SmartScreen may show an
+`Unknown publisher` warning for new or low-reputation unsigned builds.
+
+This does not necessarily mean the application is unsafe; it means Windows does
+not see a trusted code-signing certificate or enough reputation for this exact
+binary yet.
+
+Options:
+
+- Run from source with `python main.py`.
+- If you trust the release asset, choose `More info` / `Run anyway`.
+- For enterprise or production distribution, sign the EXE with an OV/EV code
+  signing certificate.
+
 ### App opens but PCAN shows disconnected
 
 Check:
