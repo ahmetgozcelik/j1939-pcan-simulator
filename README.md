@@ -1,10 +1,32 @@
 # J1939 PCAN Simulator
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)
+![Platform Windows](https://img.shields.io/badge/platform-Windows-0078D4.svg)
+![SAE J1939](https://img.shields.io/badge/protocol-SAE%20J1939-4FC3F7.svg)
+![PCAN](https://img.shields.io/badge/CAN-PEAK%20PCAN-FFB000.svg)
+
 Desktop simulator for sending configurable SAE J1939 CAN frames through PEAK PCAN
 USB adapters or a software-only virtual CAN backend.
 
 TR: PEAK PCAN USB veya sanal CAN backend uzerinden yapilandirilabilir SAE J1939
 mesajlari gonderen masaustu simulator.
+
+## Quick Start
+
+Try the simulator in virtual mode without PCAN hardware:
+
+```powershell
+git clone https://github.com/ahmetgozcelik/j1939-pcan-simulator.git
+cd j1939-pcan-simulator
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python main.py
+```
+
+Then select `Virtual`, click `Reconnect`, open `configs/default.json`, and press
+`Start Active`.
 
 ![J1939 PCAN Simulator overview](docs/screenshots/overview-connected.png)
 
@@ -52,7 +74,7 @@ Supported:
 - Workspace validation for invalid IDs, duplicate IDs, signal overlap, bit
   range errors, raw range errors, and invalid scale values
 
-Not currently supported:
+## Current Limitations
 
 - J1939 Transport Protocol transmit for multi-packet payloads
 - Multi-DTC DM1/DM2 messages beyond a single 8-byte frame
@@ -355,6 +377,30 @@ Before publishing a GitHub Release:
 
 Use a different tag if the release version has changed.
 
+## Contributing And Issues
+
+Issues and pull requests are welcome.
+
+When opening an issue, include:
+
+- Windows version
+- Python version or EXE release version
+- PCAN adapter model, channel, and bitrate if hardware is used
+- Backend selected in the app: `PCAN` or `Virtual`
+- The JSON config that reproduces the problem, if possible
+- Screenshot, frame log excerpt, or validation message
+
+For pull requests:
+
+- Keep J1939 protocol behavior covered by tests.
+- Keep UI text in English.
+- Run:
+
+  ```powershell
+  .venv\Scripts\python.exe -m unittest discover -s tests
+  .venv\Scripts\python.exe -m compileall main.py src tests
+  ```
+
 ## Troubleshooting
 
 ### App opens but PCAN shows disconnected
@@ -403,16 +449,6 @@ current workspace has messages. Check:
 ```text
 %USERPROFILE%\.j1939_simulator\recovery
 ```
-
-## Known Limitations
-
-- Transport Protocol is planned but not implemented.
-- DM1/DM2 currently focus on one DTC payload in a single 8-byte frame.
-- Standard PGN/SPN definitions are examples, not a complete licensed SAE
-  database.
-- PCAN hardware behavior must be verified on the target Windows machine.
-- The virtual backend is for software smoke testing; it does not prove physical
-  bus wiring, bitrate, or adapter driver health.
 
 ## Turkish Summary
 
