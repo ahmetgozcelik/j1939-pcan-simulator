@@ -1,0 +1,36 @@
+name: PCAN support request
+description: Get help with PEAK PCAN connection or transmission behavior.
+title: "[PCAN]: "
+labels: ["pcan", "support"]
+body:
+  - type: input
+    id: adapter
+    attributes:
+      label: PCAN adapter model
+      placeholder: PCAN-USB, PCAN-USB FD, etc.
+    validations:
+      required: true
+  - type: input
+    id: driver
+    attributes:
+      label: PEAK driver/runtime status
+      placeholder: Installed / not installed / unknown
+    validations:
+      required: true
+  - type: input
+    id: channel
+    attributes:
+      label: Channel and bitrate
+      placeholder: PCAN_USBBUS1, 250 kbps
+  - type: textarea
+    id: issue
+    attributes:
+      label: Problem
+      description: Describe the connection or transmit problem.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Include screenshots from the status row, PCAN-View, or Windows Device Manager.

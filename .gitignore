@@ -10,3 +10,4 @@ PCANBasic.dll
 .j1939_simulator/
 configs/default.json
 configs/global_j1939_comprehensive.json
+public_release/
