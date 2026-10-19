@@ -59,7 +59,32 @@ def validate_workspace(workspace: Workspace) -> list[ValidationIssue]:
             ))
 
         issues.extend(validate_message(msg, msg_index))
+        issues.extend(validate_dtc_list(msg, msg_index))
 
+    return issues
+
+
+DTC_LIMITS = (("spn", "SPN", 524287), ("fmi", "FMI", 31), ("oc", "Occurrence count", 126))
+
+
+def validate_dtc_list(
+    message: Message,
+    message_index: Optional[int] = None,
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+    if message.dm1_config is None:
+        return issues
+    for row, entry in enumerate(message.dm1_config.dtc_list, start=1):
+        for attr, label, upper in DTC_LIMITS:
+            value = getattr(entry, attr)
+            if not 0 <= value <= upper:
+                issues.append(_issue(
+                    "error",
+                    f"dtc_{attr}_out_of_range",
+                    f"DTC row {row}: {label} must be in 0..{upper}, got {value}",
+                    message_index,
+                    field="dtc_list",
+                ))
     return issues
 
 

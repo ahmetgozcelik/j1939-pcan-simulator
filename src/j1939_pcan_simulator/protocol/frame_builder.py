@@ -7,9 +7,11 @@ dependency, which keeps protocol behavior easy to test.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, List, Tuple
 
 from j1939_pcan_simulator.config.workspace import Message, Signal
+
+_DM1_PGN = 0xFECA  # PGN 65226
 
 
 FRAME_LEN = 8
@@ -227,6 +229,72 @@ def _pack_dm1_dtc(frame: bytearray, start_byte: int, dtc: DiagnosticTroubleCode)
     frame[start_byte + 1] = (spn >> 8) & 0xFF
     frame[start_byte + 2] = (((spn >> 16) & 0x07) << 5) | fmi
     frame[start_byte + 3] = ((conversion_method & 0x01) << 7) | oc
+
+
+def build_dm1_multi_dtc(
+    lamp_status: int,
+    dtcs: List[DiagnosticTroubleCode],
+    flash_lamp_status: int,
+    dm1_can_id_int: int,
+) -> List[Tuple[int, bytes]]:
+    """Build CAN frame(s) for a DM1 message with 0, 1, or many active DTCs.
+
+    Returns a list of (can_id_int, frame_bytes) pairs:
+    - 0 DTCs → single frame, DTC field 00 00 00 00 ("no active faults").
+    - 1 DTC → single 8-byte frame with the original DM1 CAN ID.
+    - 2+ DTCs → BAM transport: TP.CM followed by TP.DT packets.
+
+    BAM timing (50 ms inter-frame gap) is the caller's responsibility.
+    """
+    lamp_status &= 0xFF
+    flash_lamp_status &= 0xFF
+    sa = dm1_can_id_int & 0xFF
+
+    if len(dtcs) <= 1:
+        frame = bytearray(b"\xFF" * 8)
+        frame[0] = lamp_status
+        frame[1] = flash_lamp_status
+        if dtcs:
+            _pack_dm1_dtc(frame, 2, dtcs[0])
+        else:
+            frame[2:6] = b"\x00\x00\x00\x00"
+        return [(dm1_can_id_int, bytes(frame))]
+
+    # Build the full DM1 payload: 2 lamp bytes + 4 bytes per DTC
+    payload = bytearray()
+    payload.append(lamp_status)
+    payload.append(flash_lamp_status)
+    for dtc in dtcs:
+        dtc_bytes = bytearray(4)
+        _pack_dm1_dtc(dtc_bytes, 0, dtc)
+        payload.extend(dtc_bytes)
+
+    total_size = len(payload)
+    num_packets = (total_size + 6) // 7
+
+    # TP.CM (BAM): priority=7, PF=0xEC, PS=0xFF (global), SA
+    tp_cm_id = (7 << 26) | (0xEC << 16) | (0xFF << 8) | sa
+    tp_cm_data = bytes([
+        0x20,
+        total_size & 0xFF,
+        (total_size >> 8) & 0xFF,
+        num_packets,
+        0xFF,
+        _DM1_PGN & 0xFF,
+        (_DM1_PGN >> 8) & 0xFF,
+        (_DM1_PGN >> 16) & 0xFF,
+    ])
+
+    frames: List[Tuple[int, bytes]] = [(tp_cm_id, tp_cm_data)]
+
+    # TP.DT packets: priority=7, PF=0xEB, PS=0xFF (global), SA
+    tp_dt_id = (7 << 26) | (0xEB << 16) | (0xFF << 8) | sa
+    for seq in range(1, num_packets + 1):
+        chunk = bytes(payload[(seq - 1) * 7: seq * 7])
+        chunk = chunk + bytes([0xFF] * (7 - len(chunk)))
+        frames.append((tp_dt_id, bytes([seq]) + chunk))
+
+    return frames
 
 
 # ---------------------------------------------------------------------------

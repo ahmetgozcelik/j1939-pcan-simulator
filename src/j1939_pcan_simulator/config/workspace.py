@@ -59,6 +59,15 @@ class Signal:
 
 
 @dataclass
+class DTCEntry:
+    """One row in the Multi DTC fault list."""
+    spn: int = 0
+    fmi: int = 0
+    oc: int = 0
+    active: bool = True
+
+
+@dataclass
 class DM1Config:
     """Persisted simulation configuration for DM diagnostic messages."""
     lamp_status: int = 0x00
@@ -74,6 +83,7 @@ class DM1Config:
     spn_range_min: int = 0
     spn_range_max: int = 1000
     spn_range_interval_s: float = 2.0
+    dtc_list: List[DTCEntry] = field(default_factory=list)
 
 
 @dataclass
@@ -130,6 +140,15 @@ def _signal_from_dict(d: dict) -> Signal:
 
 
 def _dm1_config_from_dict(d: dict) -> DM1Config:
+    dtc_list = []
+    for entry in d.get("dtc_list", []):
+        if isinstance(entry, dict):
+            dtc_list.append(DTCEntry(
+                spn=int(entry.get("spn", 0)),
+                fmi=int(entry.get("fmi", 0)),
+                oc=int(entry.get("oc", 0)),
+                active=bool(entry.get("active", True)),
+            ))
     return DM1Config(
         lamp_status=int(d.get("lamp_status", 0x00)),
         flash_lamp_status=int(d.get("flash_lamp_status", 0xFF)),
@@ -144,6 +163,7 @@ def _dm1_config_from_dict(d: dict) -> DM1Config:
         spn_range_min=int(d.get("spn_range_min", 0)),
         spn_range_max=int(d.get("spn_range_max", 1000)),
         spn_range_interval_s=float(d.get("spn_range_interval_s", 2.0)),
+        dtc_list=dtc_list,
     )
 
 
@@ -162,6 +182,10 @@ def _dm1_config_to_dict(c: DM1Config) -> dict:
         "spn_range_min": c.spn_range_min,
         "spn_range_max": c.spn_range_max,
         "spn_range_interval_s": c.spn_range_interval_s,
+        "dtc_list": [
+            {"spn": e.spn, "fmi": e.fmi, "oc": e.oc, "active": e.active}
+            for e in c.dtc_list
+        ],
     }
 
 

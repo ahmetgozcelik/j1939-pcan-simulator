@@ -13,9 +13,15 @@ from typing import Dict, List, Optional
 from PyQt5.QtCore import QObject, QThread, Qt, pyqtSignal
 
 from j1939_pcan_simulator.transport.can_bus import PCanInterface
-from j1939_pcan_simulator.config.workspace import Message, Signal
+from j1939_pcan_simulator.config.workspace import DTCEntry, Message, Signal
 from j1939_pcan_simulator.protocol.dm_definitions import auto_lamp_steps, build_lamp_status, load_dm1_definitions
-from j1939_pcan_simulator.protocol.frame_builder import build_dm1_frame, build_frame, clamp_raw
+from j1939_pcan_simulator.protocol.frame_builder import (
+    DiagnosticTroubleCode,
+    build_dm1_frame,
+    build_dm1_multi_dtc,
+    build_frame,
+    clamp_raw,
+)
 
 
 @dataclass
@@ -39,7 +45,7 @@ class DM1State:
     occurrence: int = 0
 
     # Simulation modes
-    spn_mode: str = "fixed"          # "fixed" | "list" | "random_range"
+    spn_mode: str = "fixed"          # "fixed" | "list" | "random_range" | "multi_dtc"
     lamp_mode: str = "fixed"         # "fixed" | "auto"
 
     # SPN list mode
@@ -58,6 +64,9 @@ class DM1State:
     auto_lamp_interval_s: float = 2.0
     _auto_lamp_index: int = field(default=0, repr=False)
     _auto_lamp_last_change: float = field(default=0.0, repr=False)
+
+    # Multi DTC fault list
+    dtc_list: List[DTCEntry] = field(default_factory=list)
 
 
 class MessageRunner(QThread):
@@ -106,6 +115,10 @@ class MessageRunner(QThread):
                 break
 
     def _tick(self, t: float) -> None:
+        # frames_to_send: list of (can_id_int, can_id_hex, data, decoded)
+        frames_to_send: List[tuple] = []
+        use_bam_delay = False
+
         with self.engine.lock:
             msg = self.message
             decoded: List[DecodedSignal] = []
@@ -155,19 +168,61 @@ class MessageRunner(QThread):
                             self.engine.dm1_definitions,
                         )
 
-                data = build_dm1_frame(
-                    effective_lamp,
-                    effective_spn,
-                    state.fmi,
-                    state.occurrence,
-                    flash_lamp_status=state.flash_lamp_status,
-                )
-                decoded.append(DecodedSignal(
-                    name="DM1",
-                    raw=effective_spn,
-                    physical=float(effective_spn),
-                    unit=f"FMI={state.fmi} OC={state.occurrence}",
-                ))
+                if state.spn_mode == "multi_dtc":
+                    active_dtcs = [
+                        DiagnosticTroubleCode(e.spn, e.fmi, e.oc)
+                        for e in state.dtc_list
+                        if e.active
+                    ]
+                    raw_frames = build_dm1_multi_dtc(
+                        effective_lamp,
+                        active_dtcs,
+                        state.flash_lamp_status,
+                        msg.can_id_int(),
+                    )
+                    use_bam_delay = len(active_dtcs) >= 2
+                    dtc_desc = " | ".join(
+                        f"SPN={d.spn} FMI={d.fmi} OC={d.occurrence_count}"
+                        for d in active_dtcs
+                    )
+                    for i, (cid_int, frame_data) in enumerate(raw_frames):
+                        cid_hex = f"{cid_int:08X}"
+                        if i == 0 and use_bam_delay:
+                            dec = [DecodedSignal(
+                                name="DM1-BAM",
+                                raw=len(active_dtcs),
+                                physical=float(len(active_dtcs)),
+                                unit=dtc_desc or "no active DTCs",
+                            )]
+                        elif use_bam_delay:
+                            dec = [DecodedSignal(name=f"BAM-DT{i}", raw=i, physical=float(i), unit="")]
+                        else:
+                            # single frame (0 or 1 DTC)
+                            dec_spn = active_dtcs[0].spn if active_dtcs else 0
+                            dec_fmi = active_dtcs[0].fmi if active_dtcs else 0
+                            dec_oc = active_dtcs[0].occurrence_count if active_dtcs else 0
+                            dec = [DecodedSignal(
+                                name="DM1",
+                                raw=dec_spn,
+                                physical=float(dec_spn),
+                                unit=f"FMI={dec_fmi} OC={dec_oc}",
+                            )]
+                        frames_to_send.append((cid_int, cid_hex, frame_data, dec))
+                else:
+                    data = build_dm1_frame(
+                        effective_lamp,
+                        effective_spn,
+                        state.fmi,
+                        state.occurrence,
+                        flash_lamp_status=state.flash_lamp_status,
+                    )
+                    decoded.append(DecodedSignal(
+                        name="DM1",
+                        raw=effective_spn,
+                        physical=float(effective_spn),
+                        unit=f"FMI={state.fmi} OC={state.occurrence}",
+                    ))
+                    frames_to_send.append((msg.can_id_int(), msg.can_id, data, decoded))
             else:
                 for sig in msg.signals:
                     raw = self._next_raw(sig, t)
@@ -183,12 +238,13 @@ class MessageRunner(QThread):
                 for sig in msg.signals:
                     if sig.sim_mode != "fixed" and id(sig) in overrides:
                         sig.raw_value = overrides[id(sig)]
+                frames_to_send.append((msg.can_id_int(), msg.can_id, data, decoded))
 
-            can_id_int = msg.can_id_int()
-            can_id_hex = msg.can_id
-
-        self.send_request.emit(can_id_int, data)
-        self.frame_sent.emit(time.time(), can_id_hex, data, decoded, True)
+        for i, (cid_int, cid_hex, frame_data, dec) in enumerate(frames_to_send):
+            self.send_request.emit(cid_int, frame_data)
+            self.frame_sent.emit(time.time(), cid_hex, frame_data, dec, True)
+            if use_bam_delay and i < len(frames_to_send) - 1:
+                self._stop_evt.wait(0.050)
 
     def _next_raw(self, sig: Signal, t: float) -> int:
         mode = sig.sim_mode
@@ -292,21 +348,65 @@ class SimulatorEngine(QObject):
             self.dm1_states[can_id] = state
 
     def send_once(self, msg: Message) -> bytes:
+        frames_to_send: List[tuple] = []
+        use_bam = False
+
         with self.lock:
             if msg.is_diagnostic_dtc():
                 state = self.get_dm1_state(msg.can_id)
-                data = build_dm1_frame(
-                    state.lamp_status,
-                    state.spn,
-                    state.fmi,
-                    state.occurrence,
-                    flash_lamp_status=state.flash_lamp_status,
-                )
-                decoded = [DecodedSignal(
-                    name="DM1", raw=state.spn,
-                    physical=float(state.spn),
-                    unit=f"FMI={state.fmi} OC={state.occurrence}",
-                )]
+                if state.spn_mode == "multi_dtc":
+                    active_dtcs = [
+                        DiagnosticTroubleCode(e.spn, e.fmi, e.oc)
+                        for e in state.dtc_list
+                        if e.active
+                    ]
+                    raw_frames = build_dm1_multi_dtc(
+                        state.lamp_status,
+                        active_dtcs,
+                        state.flash_lamp_status,
+                        msg.can_id_int(),
+                    )
+                    use_bam = len(active_dtcs) >= 2
+                    dtc_desc = " | ".join(
+                        f"SPN={d.spn} FMI={d.fmi} OC={d.occurrence_count}"
+                        for d in active_dtcs
+                    )
+                    for i, (cid_int, frame_data) in enumerate(raw_frames):
+                        cid_hex = f"{cid_int:08X}"
+                        if i == 0 and use_bam:
+                            dec = [DecodedSignal(
+                                name="DM1-BAM",
+                                raw=len(active_dtcs),
+                                physical=float(len(active_dtcs)),
+                                unit=dtc_desc or "no active DTCs",
+                            )]
+                        elif use_bam:
+                            dec = [DecodedSignal(name=f"BAM-DT{i}", raw=i, physical=float(i), unit="")]
+                        else:
+                            dec_spn = active_dtcs[0].spn if active_dtcs else 0
+                            dec_fmi = active_dtcs[0].fmi if active_dtcs else 0
+                            dec_oc = active_dtcs[0].occurrence_count if active_dtcs else 0
+                            dec = [DecodedSignal(
+                                name="DM1",
+                                raw=dec_spn,
+                                physical=float(dec_spn),
+                                unit=f"FMI={dec_fmi} OC={dec_oc}",
+                            )]
+                        frames_to_send.append((cid_int, cid_hex, frame_data, dec))
+                else:
+                    data = build_dm1_frame(
+                        state.lamp_status,
+                        state.spn,
+                        state.fmi,
+                        state.occurrence,
+                        flash_lamp_status=state.flash_lamp_status,
+                    )
+                    decoded = [DecodedSignal(
+                        name="DM1", raw=state.spn,
+                        physical=float(state.spn),
+                        unit=f"FMI={state.fmi} OC={state.occurrence}",
+                    )]
+                    frames_to_send.append((msg.can_id_int(), msg.can_id, data, decoded))
             else:
                 data = build_frame(msg)
                 decoded = [DecodedSignal(
@@ -315,10 +415,27 @@ class SimulatorEngine(QObject):
                     physical=clamp_raw(s.raw_value, s) * s.scale + s.offset,
                     unit=s.unit,
                 ) for s in msg.signals]
-            can_id_int = msg.can_id_int()
-            can_id_hex = msg.can_id
+                frames_to_send.append((msg.can_id_int(), msg.can_id, data, decoded))
 
-        self.pcan.request_send.emit(can_id_int, data)
-        self.frame_sent.emit(time.time(), can_id_hex, data, decoded, True)
-        return data
+        if not use_bam:
+            cid_int, cid_hex, frame_data, dec = frames_to_send[0]
+            self.pcan.request_send.emit(cid_int, frame_data)
+            self.frame_sent.emit(time.time(), cid_hex, frame_data, dec, True)
+        else:
+            from PyQt5.QtCore import QTimer
+
+            def _make_send(c, d, h, dc):
+                def _do():
+                    self.pcan.request_send.emit(c, d)
+                    self.frame_sent.emit(time.time(), h, d, dc, True)
+                return _do
+
+            for i, (cid_int, cid_hex, frame_data, dec) in enumerate(frames_to_send):
+                fn = _make_send(cid_int, frame_data, cid_hex, dec)
+                if i == 0:
+                    fn()
+                else:
+                    QTimer.singleShot(i * 50, fn)
+
+        return frames_to_send[0][2]
 

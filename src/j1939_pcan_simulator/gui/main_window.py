@@ -332,6 +332,7 @@ class MainWindow(QMainWindow):
                             spn_range_min=state.spn_range_min,
                             spn_range_max=state.spn_range_max,
                             spn_range_interval_s=state.spn_range_interval_s,
+                            dtc_list=list(state.dtc_list),
                         )
 
     def _load_dm1_states_from_workspace(self) -> None:
@@ -353,6 +354,7 @@ class MainWindow(QMainWindow):
                     spn_range_min=c.spn_range_min,
                     spn_range_max=c.spn_range_max,
                     spn_range_interval_s=c.spn_range_interval_s,
+                    dtc_list=list(c.dtc_list),
                 )
                 self.engine.set_dm1_state(msg.can_id, state)
 

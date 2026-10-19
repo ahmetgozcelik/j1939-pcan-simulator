@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import sys
-from typing import Optional
+from typing import List, Optional
 
 from PyQt5.QtCore import QProcess, Qt, QUrl
 from PyQt5.QtGui import QDesktopServices
@@ -15,25 +15,33 @@ from PyQt5.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QListWidget,
     QPushButton,
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
-from j1939_pcan_simulator.config.workspace import Message
+from j1939_pcan_simulator.config.workspace import DTCEntry, Message
 from j1939_pcan_simulator.protocol.dm_definitions import (
     CONFIG_PATH,
     get_lamp,
     load_dm1_definitions,
     set_lamp,
 )
-from j1939_pcan_simulator.protocol.frame_builder import build_dm1_frame, format_bytes
+from j1939_pcan_simulator.protocol.frame_builder import (
+    DiagnosticTroubleCode,
+    build_dm1_frame,
+    build_dm1_multi_dtc,
+    format_bytes,
+)
 from j1939_pcan_simulator.simulation.engine import DM1State, SimulatorEngine
 
 DEFINITION_DISPLAY_PATH = "configs/dm1_definitions.json"
@@ -141,7 +149,7 @@ class DM1Panel(QWidget):
         mode_row = QHBoxLayout()
         mode_row.addWidget(QLabel("Mode:"))
         self.cmb_spn_mode = QComboBox()
-        self.cmb_spn_mode.addItems(["Fixed", "List (sequential)", "Random Range"])
+        self.cmb_spn_mode.addItems(["Fixed", "List (sequential)", "Random Range", "Multi DTC"])
         self.cmb_spn_mode.currentIndexChanged.connect(self._on_spn_mode_changed)
         mode_row.addWidget(self.cmb_spn_mode)
         mode_row.addStretch()
@@ -215,11 +223,40 @@ class DM1Panel(QWidget):
         rand_form.addRow("Cycle Period (s):", self.spin_rand_interval)
         self.spn_stack.addWidget(rand_page)
 
+        # Multi DTC page
+        multi_page = QWidget()
+        multi_layout = QVBoxLayout(multi_page)
+        multi_layout.setContentsMargins(0, 0, 0, 0)
+        multi_layout.setSpacing(4)
+
+        self.dtc_table = QTableWidget(0, 4)
+        self.dtc_table.setHorizontalHeaderLabels(["Active", "SPN (0–524287)", "FMI (0–31)", "OC (0–126)"])
+        self.dtc_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.dtc_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.dtc_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.dtc_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.dtc_table.verticalHeader().setVisible(False)
+        self.dtc_table.setMinimumHeight(120)
+        self.dtc_table.itemChanged.connect(self._on_dtc_table_changed)
+        multi_layout.addWidget(self.dtc_table)
+
+        dtc_btn_row = QHBoxLayout()
+        btn_add_dtc = QPushButton("Add DTC")
+        btn_add_dtc.clicked.connect(self._add_dtc_row)
+        btn_del_dtc = QPushButton("Delete Selected")
+        btn_del_dtc.clicked.connect(self._del_dtc_row)
+        dtc_btn_row.addWidget(btn_add_dtc)
+        dtc_btn_row.addWidget(btn_del_dtc)
+        dtc_btn_row.addStretch()
+        multi_layout.addLayout(dtc_btn_row)
+        self.spn_stack.addWidget(multi_page)
+
         spn_main.addWidget(self.spn_stack)
         layout.addWidget(spn_group)
 
         # FMI / OC
-        dtc_group = QGroupBox("DTC Detail")
+        self.dtc_detail_group = QGroupBox("DTC Detail")
+        dtc_group = self.dtc_detail_group
         dtc_layout = QGridLayout(dtc_group)
         dtc_layout.setHorizontalSpacing(10)
         dtc_layout.setVerticalSpacing(8)
@@ -245,13 +282,14 @@ class DM1Panel(QWidget):
         dtc_layout.addWidget(lbl_occurrence, 1, 0)
         dtc_layout.addWidget(self.spin_oc, 1, 1)
         dtc_layout.setColumnStretch(1, 1)
-        layout.addWidget(dtc_group)
+        layout.addWidget(self.dtc_detail_group)
 
         # Preview / Send
-        prev = QGroupBox("Frame Preview (8 bytes)")
+        prev = QGroupBox("Frame Preview")
         prev_l = QVBoxLayout(prev)
         self.lbl_preview = QLabel("FF FF FF FF FF FF FF FF")
         self.lbl_preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.lbl_preview.setWordWrap(True)
         f2 = self.lbl_preview.font()
         f2.setFamily("Consolas")
         f2.setPointSize(f2.pointSize() + 2)
@@ -294,9 +332,10 @@ class DM1Panel(QWidget):
                 checkbox.setChecked(get_lamp(state.flash_lamp_status, key, self.dm1_definitions))
             self.spin_lamp_interval.setValue(state.auto_lamp_interval_s)
 
-            mode_map = {"fixed": 0, "list": 1, "random_range": 2}
+            mode_map = {"fixed": 0, "list": 1, "random_range": 2, "multi_dtc": 3}
             self.cmb_spn_mode.setCurrentIndex(mode_map.get(state.spn_mode, 0))
             self.spin_spn.setValue(state.spn)
+            self._populate_dtc_table(state.dtc_list)
 
             self.spn_list_widget.clear()
             for v in state.spn_list:
@@ -445,7 +484,9 @@ class DM1Panel(QWidget):
             self.lbl_lamp_mode_hint.setText("Status lamps are manual in Fixed mode. Flash lamps remain manual.")
 
     def _on_spn_mode_changed(self) -> None:
-        self.spn_stack.setCurrentIndex(self.cmb_spn_mode.currentIndex())
+        idx = self.cmb_spn_mode.currentIndex()
+        self.spn_stack.setCurrentIndex(idx)
+        self.dtc_detail_group.setVisible(idx != 3)
         self._on_changed()
 
     def _add_spn_to_list(self) -> None:
@@ -474,7 +515,7 @@ class DM1Panel(QWidget):
             )
 
         mode_idx = self.cmb_spn_mode.currentIndex()
-        spn_mode = ["fixed", "list", "random_range"][mode_idx]
+        spn_mode = ["fixed", "list", "random_range", "multi_dtc"][mode_idx]
 
         spn_list = []
         for i in range(self.spn_list_widget.count()):
@@ -497,6 +538,7 @@ class DM1Panel(QWidget):
             spn_range_interval_s=self.spin_rand_interval.value(),
             fmi=self.cmb_fmi.currentData() or 0,
             occurrence=self.spin_oc.value(),
+            dtc_list=self._read_dtc_table(),
         )
         return state
 
@@ -510,17 +552,107 @@ class DM1Panel(QWidget):
 
     def _refresh_preview(self) -> None:
         state = self._current_state()
-        data = build_dm1_frame(
-            state.lamp_status,
-            state.spn,
-            state.fmi,
-            state.occurrence,
-            flash_lamp_status=state.flash_lamp_status,
-        )
-        self.lbl_preview.setText(format_bytes(data))
+        if state.spn_mode == "multi_dtc":
+            active_dtcs = [
+                DiagnosticTroubleCode(e.spn, e.fmi, e.oc)
+                for e in state.dtc_list
+                if e.active
+            ]
+            can_id_int = self.message.can_id_int() if self.message else 0x18FECA00
+            frames = build_dm1_multi_dtc(
+                state.lamp_status, active_dtcs, state.flash_lamp_status, can_id_int
+            )
+            lines = [f"{cid:08X}: {format_bytes(data)}" for cid, data in frames]
+            self.lbl_preview.setText("\n".join(lines))
+        else:
+            data = build_dm1_frame(
+                state.lamp_status,
+                state.spn,
+                state.fmi,
+                state.occurrence,
+                flash_lamp_status=state.flash_lamp_status,
+            )
+            self.lbl_preview.setText(format_bytes(data))
 
     def _send_once(self) -> None:
         if self.message is None:
             return
         self.engine.send_once(self.message)
+
+    # ------------------------------------------------------------------
+    # DTC table helpers
+    # ------------------------------------------------------------------
+
+    def _populate_dtc_table(self, dtc_list: List[DTCEntry]) -> None:
+        self.dtc_table.blockSignals(True)
+        self.dtc_table.setRowCount(0)
+        for entry in dtc_list:
+            self._insert_dtc_row(entry.spn, entry.fmi, entry.oc, entry.active)
+        self.dtc_table.blockSignals(False)
+
+    def _insert_dtc_row(self, spn: int = 0, fmi: int = 0, oc: int = 0, active: bool = True) -> None:
+        row = self.dtc_table.rowCount()
+        self.dtc_table.insertRow(row)
+
+        chk = QTableWidgetItem()
+        chk.setFlags(Qt.ItemIsUserCheckable | Qt.ItemIsEnabled)
+        chk.setCheckState(Qt.Checked if active else Qt.Unchecked)
+        self.dtc_table.setItem(row, 0, chk)
+
+        spn_spin = QSpinBox()
+        spn_spin.setRange(0, 524287)
+        spn_spin.setValue(spn)
+        spn_spin.setFrame(False)
+        spn_spin.valueChanged.connect(self._on_changed)
+        self.dtc_table.setCellWidget(row, 1, spn_spin)
+
+        fmi_spin = QSpinBox()
+        fmi_spin.setRange(0, 31)
+        fmi_spin.setValue(fmi)
+        fmi_spin.setFrame(False)
+        fmi_spin.valueChanged.connect(self._on_changed)
+        self.dtc_table.setCellWidget(row, 2, fmi_spin)
+
+        oc_spin = QSpinBox()
+        oc_spin.setRange(0, 126)
+        oc_spin.setValue(oc)
+        oc_spin.setFrame(False)
+        oc_spin.valueChanged.connect(self._on_changed)
+        self.dtc_table.setCellWidget(row, 3, oc_spin)
+
+    def _add_dtc_row(self) -> None:
+        self.dtc_table.blockSignals(True)
+        self._insert_dtc_row()
+        self.dtc_table.blockSignals(False)
+        self._on_changed()
+
+    def _del_dtc_row(self) -> None:
+        rows = sorted(
+            {idx.row() for idx in self.dtc_table.selectedIndexes()},
+            reverse=True,
+        )
+        for row in rows:
+            self.dtc_table.removeRow(row)
+        self._on_changed()
+
+    def _on_dtc_table_changed(self, item: QTableWidgetItem) -> None:
+        if item.column() == 0:
+            self._on_changed()
+
+    def _read_dtc_table(self) -> List[DTCEntry]:
+        entries: List[DTCEntry] = []
+        for row in range(self.dtc_table.rowCount()):
+            chk = self.dtc_table.item(row, 0)
+            spn_w = self.dtc_table.cellWidget(row, 1)
+            fmi_w = self.dtc_table.cellWidget(row, 2)
+            oc_w = self.dtc_table.cellWidget(row, 3)
+            if chk is None or spn_w is None or fmi_w is None or oc_w is None:
+                continue
+            entries.append(DTCEntry(
+                spn=spn_w.value(),
+                fmi=fmi_w.value(),
+                oc=oc_w.value(),
+                active=chk.checkState() == Qt.Checked,
+            ))
+        return entries
 
